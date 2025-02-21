@@ -1,2 +1,1 @@
-# nishida-san-share
-RPA／自動化関連の承認やバックログ共有用のリポジトリ（実装コードなし・アクションなし）
+Google-Analytics-GA-Metrics
