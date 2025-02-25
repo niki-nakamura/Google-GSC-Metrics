@@ -1,40 +1,13 @@
-name: Scheduled Fetch & Commit CSV
+- name: Run data_fetcher
+  run: python src/data_fetcher.py  # カレントディレクトリ=リポジトリルート
 
-on:
-  workflow_dispatch:      # ← 追加: 手動実行を許可
-  schedule:
-    - cron: '0 9 * * *'   # 既存: 毎日9時に定期実行
+- name: Debug listing
+  run: ls -la
 
-jobs:
-  fetch_and_commit:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0  # 後で git push が必要なため
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Create credentials.json from Secrets
-        run: echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > credentials.json
-
-      - name: Run data_fetcher to generate CSV
-        run: python src/data_fetcher.py
-
-      - name: Commit and push CSV
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add sheet_query_data.csv
-          git commit -m "chore: update CSV at $(date +'%Y-%m-%d %H:%M:%S')"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+- name: Commit and push
+  run: |
+    git config user.name "github-actions[bot]"
+    git config user.email "github-actions[bot]@users.noreply.github.com"
+    git add sheet_query_data.csv
+    git commit -m "chore: update CSV at $(date +'%Y-%m-%d %H:%M:%S')"
+    git push
