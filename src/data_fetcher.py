@@ -29,3 +29,5 @@ def main_fetch_all():
 
     df.to_csv("sheet_query_data.csv", index=False, encoding="utf-8-sig")
     print("Data has been fetched from Sheets and saved to sheet_query_data.csv!")
+
+df.to_csv("sheet_query_data.csv", index=False, encoding="utf-8-sig")
