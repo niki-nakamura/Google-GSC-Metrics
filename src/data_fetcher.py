@@ -20,6 +20,8 @@ def main_fetch_all():
     worksheet = sh.worksheet(SHEET_NAME)
 
     data = worksheet.get_all_values()
+
+    # データが空の場合でも df を定義しておく
     if not data:
         df = pd.DataFrame()
     else:
@@ -27,7 +29,10 @@ def main_fetch_all():
         rows = data[1:]
         df = pd.DataFrame(rows, columns=headers)
 
+    # CSV 出力もこの関数内で行う
     df.to_csv("sheet_query_data.csv", index=False, encoding="utf-8-sig")
     print("Data has been fetched from Sheets and saved to sheet_query_data.csv!")
 
-df.to_csv("sheet_query_data.csv", index=False, encoding="utf-8-sig")
+# 以下は「直接 python data_fetcher.py を実行した場合」にも動作させたいなら入れる
+if __name__ == "__main__":
+    main_fetch_all()
