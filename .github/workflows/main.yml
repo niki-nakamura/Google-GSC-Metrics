@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint/Format check (optional)
+        run: |
+          # flake8 or blackなど実行例 (必要なら)
+          echo "Lint check placeholder"
+
+      - name: Run tests (optional)
+        run: |
+          echo "No tests yet"
+      
+      # Dockerイメージをビルド＆Pushする場合など
+      # - name: Build Docker image
+      #   run: |
+      #     docker build -t your-image-name:latest .
+      #     # ここでDockerHubやGHCR等にPushするなら、その処理を記述
+
+      # Streamlit Cloudにデプロイしたい場合は
+      #  - ストリームリット公式のDeploy GitHub Actionなどがあれば利用
+      #  - もしくはmainにpushするとStreamlit Cloudが自動反映する設定など
+
+      - name: Finished
+        run: echo "Build job finished."
