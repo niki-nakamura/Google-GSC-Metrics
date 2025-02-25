@@ -24,6 +24,7 @@ def streamlit_main():
     st.subheader("query_貼付 シート CSV のビューワー")
     st.dataframe(df)
 
+    # 例: カラム "page_view" がある場合のみ合計を表示
     if "page_view" in df.columns:
         st.subheader("page_view の合計")
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
