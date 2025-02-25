@@ -1,4 +1,5 @@
 streamlit==1.18.1
+numpy==1.24.3
 pandas==1.5.3
 google-auth==2.16.2
 google-auth-oauthlib==0.7.1
