@@ -8,6 +8,7 @@ numpy>=1.26.0
 pandas>=2.0.3
 
 # Streamlit etc.
+altair==4.2.2
 streamlit==1.18.1
 gspread==5.7.2
 oauth2client==4.1.3
