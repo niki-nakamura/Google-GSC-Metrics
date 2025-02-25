@@ -1,45 +1,30 @@
-name: CI
+name: Scheduled Fetch
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * *'  # 毎日9時に定期実行
 
 jobs:
-  build-and-test:
+  fetch_job:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Check out repository code
+      - name: Check out
         uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: '3.9'
 
       - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      - name: Lint/Format check (optional)
-        run: |
-          # flake8 or blackなど実行例 (必要なら)
-          echo "Lint check placeholder"
+      - name: Create credentials.json from Secrets
+        # GCP_SERVICE_ACCOUNT_JSON に保存した JSON をファイルとして出力
+        run: echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > credentials.json
 
-      - name: Run tests (optional)
-        run: |
-          echo "No tests yet"
-      
-      # Dockerイメージをビルド＆Pushする場合など
-      # - name: Build Docker image
-      #   run: |
-      #     docker build -t your-image-name:latest .
-      #     # ここでDockerHubやGHCR等にPushするなら、その処理を記述
-
-      # Streamlit Cloudにデプロイしたい場合は
-      #  - ストリームリット公式のDeploy GitHub Actionなどがあれば利用
-      #  - もしくはmainにpushするとStreamlit Cloudが自動反映する設定など
-
-      - name: Finished
-        run: echo "Build job finished."
+      - name: Run script
+        # data_fetcher.py の中で `credentials.json` を読み込むようになっている
+        run: python src/data_fetcher.py
