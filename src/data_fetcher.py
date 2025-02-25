@@ -2,84 +2,60 @@
 
 import os
 import json
-import datetime
 import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-from google.oauth2 import service_account
-from google.cloud import bigquery
+# ▼ ここをあなたのスプレッドシートIDに置き換えてください
+SPREADSHEET_ID = "1X6beVQYQsCKl2EV7yHg4y182EI0RJdJBaNGtcuX2bwo"
 
-SERVICE_ACCOUNT_JSON = os.environ.get("GCP_SERVICE_ACCOUNT_JSON", "service_account.json")
+# ▼ サービスアカウントのJSONキーを環境変数から読み取る
+SERVICE_ACCOUNT_JSON = os.environ.get("GCP_SERVICE_ACCOUNT_JSON", "")
 
-def get_credentials():
+def get_gspread_client():
     """
-    Service Accountキー(JSON文字列)を環境変数で受け取る想定。
+    gspread で Sheets にアクセスするための認証クライアントを返す。
+    SERVICE_ACCOUNT_JSON が JSON文字列で環境変数に設定されている想定。
     """
     if not SERVICE_ACCOUNT_JSON:
-        raise ValueError("サービスアカウントのJSONが環境変数にありません。")
-
+        raise ValueError("サービスアカウントJSONが見つかりません。環境変数 GCP_SERVICE_ACCOUNT_JSON を設定してください。")
+    
     info = json.loads(SERVICE_ACCOUNT_JSON)
-    creds = service_account.Credentials.from_service_account_info(
-        info,
-        scopes=[
-            "https://www.googleapis.com/auth/bigquery",
-        ],
-    )
-    return creds
+    
+    # gspread + oauth2client を使う場合のスコープ
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets.readonly", 
+        "https://www.googleapis.com/auth/drive.readonly"
+    ]
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(info, scopes=scopes)
+    gc = gspread.authorize(credentials)
+    return gc
 
-def fetch_bigquery_data(sql: str, project_id: str) -> pd.DataFrame:
+def fetch_data_from_query_sheet() -> pd.DataFrame:
     """
-    共通のBigQuery実行関数
+    Googleスプレッドシートの「query_貼付」シートの値を読み込み、DataFrameに変換する。
+    シートの1行目にヘッダーが含まれる想定。
     """
-    creds = get_credentials()
-    client = bigquery.Client(credentials=creds, project=project_id)
-
-    query_job = client.query(sql)
-    rows = list(query_job.result())
-    if not rows:
+    gc = get_gspread_client()
+    sh = gc.open_by_key(SPREADSHEET_ID)
+    wks = sh.worksheet("query_貼付")  # シート名
+    
+    # シート全体を取得 (1行目がカラム名という想定)
+    all_values = wks.get_all_values()
+    if len(all_values) < 2:
+        # ヘッダーしか無い or 空
         return pd.DataFrame()
-
-    # スキーマから列名を取得
-    columns = [field.name for field in rows[0].keys()]
-    data = [list(row.values()) for row in rows]
-    df = pd.DataFrame(data, columns=columns)
-    return df
-
-def fetch_wp_content_7days() -> pd.DataFrame:
-    """
-    指定のクエリを実行し、直近7日間の wp_content_by_result_* テーブルデータを取得
-    """
-    sql = """
-SELECT
-  event_date,
-  CONTENT_TYPE,
-  POST_ID,
-  post_title,
-  session,
-  page_view,
-  click_app_store,
-  imp,
-  click,
-  sum_position,
-  avg_position,
-  sales,
-  app_link_click,
-  cv
-FROM `afmedia.seo_bizdev.wp_content_by_result_*`
-WHERE 
-  _TABLE_SUFFIX BETWEEN
-    FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY))
-    AND FORMAT_DATE('%Y%m%d', CURRENT_DATE())
-;
-"""
-    project_id = "afmedia"  # 適切なProject IDに置き換えてください
-    df = fetch_bigquery_data(sql, project_id)
+    
+    # 1行目をカラム名、2行目以降をデータとしてDataFrame化
+    header = all_values[0]
+    data_rows = all_values[1:]
+    df = pd.DataFrame(data_rows, columns=header)
     return df
 
 def main_fetch_all():
     """
-    必要に応じてまとめて色々Fetchしたい場合はここで実装。
-    今回は wp_content_7days() の結果だけをCSV化して終わりにする例。
+    「query_貼付」シートのデータを CSV に保存。
     """
-    df_wp = fetch_wp_content_7days()
-    df_wp.to_csv("wp_content_latest.csv", index=False)
-    print("Data fetch & CSV保存完了")
+    df = fetch_data_from_query_sheet()
+    df.to_csv("sheet_query_data.csv", index=False, encoding="utf-8-sig")
+    print("シート 'query_貼付' のデータを 'sheet_query_data.csv' に出力しました。")
