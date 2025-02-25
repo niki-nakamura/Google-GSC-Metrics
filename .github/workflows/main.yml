@@ -1,17 +1,18 @@
-name: Scheduled Fetch
+name: Scheduled Fetch & Commit CSV
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: '0 9 * * *'  # 毎日9時に定期実行
 
 jobs:
-  fetch_job:
+  fetch_and_commit:
     runs-on: ubuntu-latest
     steps:
       - name: Check out
         uses: actions/checkout@v3
+        with:
+          # 注意: デフォルトでは git の fetch-depth が 1 のため、ヒストリが浅いと後で push できない場合あり
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -22,9 +23,25 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Create credentials.json from Secrets
-        # GCP_SERVICE_ACCOUNT_JSON に保存した JSON をファイルとして出力
         run: echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > credentials.json
 
-      - name: Run script
-        # data_fetcher.py の中で `credentials.json` を読み込むようになっている
+      - name: Run data_fetcher to generate CSV
         run: python src/data_fetcher.py
+        # → ここで sheet_query_data.csv が生成される
+
+      - name: Commit and push CSV
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 変更のあるファイルをステージ
+          git add sheet_query_data.csv
+
+          # コミット
+          git commit -m "chore: update CSV at $(date +'%Y-%m-%d %H:%M:%S')"
+
+          # プッシュ
+          git push
+        env:
+          # Actions 内で自動セットされるトークンを使う
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
