@@ -1,5 +1,7 @@
-# 例: 
-gspread==5.7.2
-oauth2client==4.1.3  # or google-auth and google-auth-oauthlib
-pandas==1.5.3
+pip>=23.2
+setuptools>=66.0.0
+wheel>=0.40.0
+
+numpy==1.25.2
+pandas==2.0.3
 streamlit==1.18.1
