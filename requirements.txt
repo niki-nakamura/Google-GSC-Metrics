@@ -1,0 +1,9 @@
+streamlit==1.18.1
+pandas==1.5.3
+google-auth==2.16.2
+google-auth-oauthlib==0.7.1
+google-auth-httplib2==0.1.0
+google-api-python-client==2.70.0
+google-cloud-bigquery==3.5.0
+gspread==5.7.2
+# 必要に応じて追加
