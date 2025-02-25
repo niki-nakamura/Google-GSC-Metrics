@@ -1,8 +1,9 @@
 name: Scheduled Fetch & Commit CSV
 
 on:
+  workflow_dispatch:      # ← 追加: 手動実行を許可
   schedule:
-    - cron: '0 9 * * *'  # 毎日9時に定期実行
+    - cron: '0 9 * * *'   # 既存: 毎日9時に定期実行
 
 jobs:
   fetch_and_commit:
@@ -11,8 +12,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v3
         with:
-          # 注意: デフォルトでは git の fetch-depth が 1 のため、ヒストリが浅いと後で push できない場合あり
-          fetch-depth: 0
+          fetch-depth: 0  # 後で git push が必要なため
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -27,21 +27,14 @@ jobs:
 
       - name: Run data_fetcher to generate CSV
         run: python src/data_fetcher.py
-        # → ここで sheet_query_data.csv が生成される
 
       - name: Commit and push CSV
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 変更のあるファイルをステージ
           git add sheet_query_data.csv
-
-          # コミット
           git commit -m "chore: update CSV at $(date +'%Y-%m-%d %H:%M:%S')"
-
-          # プッシュ
           git push
         env:
-          # Actions 内で自動セットされるトークンを使う
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
