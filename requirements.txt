@@ -1,17 +1,19 @@
-# (1) まずビルドツール系を先頭でアップグレード
+# Streamlit & Altair
+streamlit==1.18.1
+altair==4.2.2   # ★ここを追加（4.2.x の安定版を指定）
+
+# NumPy, pandas, buildツール類
 pip>=23.2
 setuptools>=66.0.0
 wheel>=0.40.0
 
-# (2) NumPy & Pandas を最新 or 3.12対応が安定しているバージョンに
-numpy>=1.26.0
-pandas>=2.0.0
+numpy>=1.25
+pandas>=2.0
 
-streamlit==1.18.1
 google-auth==2.16.2
 google-auth-oauthlib==0.7.1
 google-auth-httplib2==0.1.0
 google-api-python-client==2.70.0
 google-cloud-bigquery==3.5.0
 gspread==5.7.2
-# ... 他のパッケージ ...
+# ... その他必要パッケージ ...
