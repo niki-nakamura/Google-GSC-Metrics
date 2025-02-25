@@ -1,18 +1,20 @@
 name: Scheduled Fetch & Commit CSV
 
 on:
-  workflow_dispatch:      # ← 追加: 手動実行を許可
+  workflow_dispatch:      # 手動実行を許可
   schedule:
-    - cron: '0 9 * * *'   # 既存: 毎日9時に定期実行
+    - cron: '0 9 * * *'   # 毎日9時に定期実行
 
 jobs:
   fetch_and_commit:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # 後で git push が必要なため
+          # git push のため、過去履歴を完全に取得する
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -20,12 +22,15 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
+        # requirements.txt 内に gspread, oauth2client, streamlit, pandas 等が含まれている想定
         run: pip install -r requirements.txt
 
       - name: Create credentials.json from Secrets
+        # GCP_SERVICE_ACCOUNT_JSON に保存したJSONをそのまま書き込む
         run: echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > credentials.json
 
       - name: Run data_fetcher to generate CSV
+        # ここで sheet_query_data.csv が生成される
         run: python src/data_fetcher.py
 
       - name: Commit and push CSV
