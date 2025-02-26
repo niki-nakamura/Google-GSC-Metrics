@@ -43,3 +43,10 @@ jobs:
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          - name: Debug credentials
+  run: |
+    echo "---- credentials.json content ----"
+    cat credentials.json
+    echo "----------------------------------"
+
