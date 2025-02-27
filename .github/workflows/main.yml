@@ -3,7 +3,7 @@ name: Scheduled Fetch & Commit CSV
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 5 * * *'
 
 permissions:
   contents: write   # ← リポジトリのコンテンツ(ファイル)への書き込みを許可
