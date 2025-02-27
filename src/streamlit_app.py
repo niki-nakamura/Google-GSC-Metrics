@@ -56,9 +56,9 @@ def streamlit_main():
         unsafe_allow_html=True
     )
 
+    # 項目定義をなるべくコンパクトに
     st.markdown("""
-    ## 項目の定義
-    - **CV** : コンバージョン（アプリのダウンロード数 等）
+    **項目定義**: ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
     # CSV データ読み込み
@@ -66,6 +66,10 @@ def streamlit_main():
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
+
+    # 列 "ONTENT_TYPE" を表示しない（あれば削除）
+    if "ONTENT_TYPE" in df.columns:
+        df.drop(columns=["ONTENT_TYPE"], inplace=True)
 
     # 数値列を小数点以下1桁に丸める
     numeric_cols = df.select_dtypes(include=['float','int']).columns
@@ -77,7 +81,7 @@ def streamlit_main():
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{total_pv}")
 
-    # カテゴリをカンマ分割してリスト化
+    # カテゴリをカンマ分割してリスト化（「ツール,広告ブロック」 → ["ツール","広告ブロック"]）
     unique_cats = []
     if "category" in df.columns:
         df["split_categories"] = df["category"].fillna("").apply(
@@ -103,25 +107,24 @@ def streamlit_main():
     # フィルタ1: タイトル検索
     if title_search and "title" in df.columns:
         df = df[df["title"].astype(str).str.contains(title_search, na=False)]
-
     # フィルタ2: ID検索
     if id_search and "id" in df.columns:
         df = df[df["id"].astype(str).str.contains(id_search, na=False)]
-
     # フィルタ3: カテゴリ選択
     if category_selected != "すべて" and "split_categories" in df.columns:
         df = df[df["split_categories"].apply(lambda catlist: category_selected in catlist)]
 
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # URLをクリック可能に (HTMLリンク化)
+    # URLをクリック可能に (HTMLリンク化)、右詰めで表示
     if "URL" in df.columns:
         def make_clickable(url):
             url = str(url)
             if url.startswith("http"):
-                return f'<a href="{url}" target="_blank">{url}</a>'
+                # style=\"text-align:right;\" で右寄せ
+                return f'<div style=\"text-align:right;\"><a href=\"{url}\" target=\"_blank\">{url}</a></div>'
             else:
-                return url
+                return f'<div style=\"text-align:right;\">{url}</div>'
         df["URL"] = df["URL"].apply(make_clickable)
 
     # HTMLテーブルとして表示 (角丸CSS適用)
