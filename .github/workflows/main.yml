@@ -3,39 +3,38 @@ name: Scheduled Fetch & Commit CSV
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 4 * * *'   # 毎日4時(UTC時刻)に実行
+    - cron: '0 4 * * *'
 
 jobs:
   fetch_and_commit:
     runs-on: ubuntu-latest
+    
+    # ★ ここで permissions を指定
+    permissions:
+      contents: write
+    
     steps:
       - name: Check out
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
       - name: Create credentials.json
         run: |
           cat <<EOF > credentials.json
           ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           EOF
-
       - name: Debug credentials
         if: false
         run: |
           cat credentials.json
-
       - name: Run data_fetcher to generate CSV
         run: python src/data_fetcher.py
-
       - name: Commit and push CSV
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
