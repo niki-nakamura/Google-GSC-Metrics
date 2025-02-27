@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from data_fetcher import main_fetch_all
 
 # ページ全体をワイド表示に
@@ -17,7 +18,7 @@ def load_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 def show_sheet1():
-    # 既存のCSS適用
+    # 既存のCSS (角丸表示など)
     st.markdown(
         """
         <style>
@@ -60,105 +61,107 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    # 項目の簡易説明
     st.markdown("""
     **項目定義**: ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
-    # CSV読み込み
+    # データ読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # ONTENT_TYPEを削除（あれば）
+    # 列 "ONTENT_TYPE" を表示しない（あれば削除）
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
 
     # 数値列を小数点以下1桁に丸める
-    numeric_cols = df.select_dtypes(include=['float','int']).columns
+    numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
-    # page_view の合計を上に表示
+    # page_view の合計表示
     if "page_view" in df.columns:
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{total_pv}")
 
-    # --- サイドバーに拡張機能を追加 ---
+    # -----------------------
+    # サイドバーに「売上 or CV が 0 以上」「複数条件フィルタ」「リライト優先度」などを追加
     with st.sidebar:
         st.subheader("フィルタ & 拡張機能")
 
-        # 1. 売上 or CV が > 0 のみ表示するか
+        # 1. 売上 or CV が 0 以上の記事のみ表示
         filter_sales_cv = st.checkbox("売上 or CV が 0 以上の記事のみ表示")
         if filter_sales_cv:
+            # sales, cv列があれば数値に変換(なければスキップ)
+            if "sales" in df.columns:
+                df["sales"] = pd.to_numeric(df["sales"], errors="coerce").fillna(0)
+            if "cv" in df.columns:
+                df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
+
             if "sales" in df.columns and "cv" in df.columns:
                 df = df[(df["sales"] > 0) | (df["cv"] > 0)]
             else:
-                st.warning("sales or cv 列が見つかりませんでした。")
+                st.warning("sales or cv 列が見つからないため、フィルタを適用できません。")
 
         # 2. 複数条件フィルタ
         st.write("### 複数条件フィルタ")
         cv_min = st.number_input("最低CV", value=0.0, step=0.5)
         pv_min = st.number_input("最低page_view", value=0.0, step=10.0)
+
         if st.button("Apply 複数条件フィルタ"):
+            # 安全に数値変換
+            if "cv" in df.columns:
+                df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
+            if "page_view" in df.columns:
+                df["page_view"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
+
             if "cv" in df.columns and "page_view" in df.columns:
                 df = df[(df["cv"] >= cv_min) & (df["page_view"] >= pv_min)]
             else:
-                st.warning("cv or page_view 列が見つかりません。")
+                st.warning("cv or page_view 列が見つからないため、フィルタを適用できません。")
 
         # 3. Rewrite Priority Score
         st.write("### Rewrite Priority")
         if st.button("Rewrite Priority Scoreで降順ソート"):
-            # 例: 重みを適当に設定
+            # 適当に重みを設定
             w_sales = 1.0
             w_cv = 1.0
             w_pv = 0.5
             w_pos = 0.2
 
-            import numpy as np
-
+            # 計算関数
             def calc_rewrite_priority(row):
-                # sales, cv, page_view, avg_position が無い場合は 0 扱い
                 s = row.get("sales", 0)
                 c = row.get("cv", 0)
                 pv = row.get("page_view", 0)
-                pos = row.get("avg_position", 9999)  # 無い場合はすごく低い順位扱い
+                pos = row.get("avg_position", 9999)  # 無い場合は大きい値
 
-                # ln(...) 部分
-                sales_term = w_sales * np.log(s + 1)
-                cv_term = w_cv * c
-                pv_term = w_pv * np.log(pv + 1)
-                pos_term = -1.0 * w_pos * pos  # 小さいほどプラスに
+                s_term = np.log(s + 1) * w_sales     # ln(sales+1)
+                c_term = c * w_cv                   # CVそのまま
+                pv_term = np.log(pv + 1) * w_pv     # ln(page_view+1)
+                pos_term = -pos * w_pos             # 順位が小さいほどプラスに
+                return s_term + c_term + pv_term + pos_term
 
-                return sales_term + cv_term + pv_term + pos_term
-
-            # rewrite_priority 列を追加
             df["rewrite_priority"] = df.apply(calc_rewrite_priority, axis=1)
-            # 降順ソート
             df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
-        # 4. B.「伸びしろ(growth_rate)」ボタン（ダミー）
+        # 4. 伸びしろ(growth_rate)
         if st.button("伸びしろ( growth_rate )"):
-            st.info("今後: growth_rate を利用して上昇/下降記事を判定するロジックを実装予定")
+            st.info("今後: growth_rate で上昇/下降を判定するロジックを追加予定")
 
-        # 5. C.「CVR × Avg. Position」ボタン（ダミー）
+        # 5. CVR × Avg.Position
         if st.button("CVR × Avg. Position"):
-            st.info("今後: CVRが高いが avg_position が3～10位等、リライト優先度を可視化する予定")
+            st.info("CVRが高い＆avg_positionが3~10位などの記事を抽出するUIを今後実装")
 
-        # 6. D.「需要(imp) × 収益」ボタン（ダミー）
+        # 6. 需要(imp) × 収益
         if st.button("需要(imp) × 収益(sales or cv)"):
-            st.info("今後: imp と sales/cv の掛け合わせ指標を導入し、ポテンシャル大の記事を抽出予定")
+            st.info("今後、imp×salesでポテンシャル抽出する指標を追加予定")
 
-    # カテゴリ分割（元からある処理） -> ここでは何もしなくてOK
-    # 「カテゴリ絞り込み」も既に実装済み
-
-    # タイトル検索 / ID検索 / カテゴリ絞り込み（既存処理）も既存のまま
-
-
+    # タイトル検索 / ID検索 / カテゴリ絞り込み（従来どおり）
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # URL右寄せリンク化
+    # URL列を右寄せクリック化
     if "URL" in df.columns:
         def make_clickable(url):
             url = str(url)
@@ -168,14 +171,13 @@ def show_sheet1():
                 return f'<div style="text-align:right;">{url}</div>'
         df["URL"] = df["URL"].apply(make_clickable)
 
-    # HTMLテーブルとして表示
+    # HTMLテーブル出力
     html_table = df.to_html(
         escape=False,
         index=False,
         classes=["customtable"]
     )
     st.write(html_table, unsafe_allow_html=True)
-
 
 ###################################
 # READMEなど非表示のまま保持
