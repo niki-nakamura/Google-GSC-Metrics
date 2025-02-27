@@ -5,6 +5,33 @@ from data_fetcher import main_fetch_all
 # ページ全体をワイド表示に
 st.set_page_config(layout="wide")
 
+# ここに README の文章をベタ書き
+README_TEXT = """
+# README: 直近7日間の「column」記事データ集計クエリ
+
+## 概要
+- **目的**  
+  - WordPress 投稿のうち、`CONTENT_TYPE = 'column'` である記事を対象に、直近7日間の各種指標（セッション・PV・クリックなど）を BigQuery 上で集計する。
+  - 併せて、WordPress DB から記事の「カテゴリー情報」を取得・紐づけし、1つのテーブルとして出力する。
+
+... (中略) ...
+
+## 出力カラムについて
+| カラム名  | 役割・意味                                                     |
+|-----------|----------------------------------------------------------------|
+| CONTENT_TYPE     | 記事種別（今回は固定で `column`）。                |
+| POST_ID          | WordPress の投稿ID。                             |
+| URL              | 対象記事のURL。                            |
+| category         | 記事に紐づくカテゴリー（カンマ区切り）。           |
+| post_title       | 投稿タイトル。                                   |
+| session          | セッション数の平均（直近7日）。                  |
+| page_view        | ページビュー数の平均（直近7日）。                |
+| click_app_store  | アプリストアへのリンククリック数の平均。         |
+| ...             | ... (以下省略) ...
+
+以上がクエリ全体のREADMEです。必要に応じて社内で加筆・修正してください。
+"""
+
 def load_data() -> pd.DataFrame:
     """CSV を読み込む。ない場合は空DataFrameを返す"""
     try:
