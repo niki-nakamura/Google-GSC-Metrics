@@ -142,14 +142,37 @@ def show_sheet1():
 ###################################
 
 README_TEXT = """
-# README: 直近7日間の「column」記事データ集計クエリ\n\n
-## 概要\n- **目的**\n  - WordPress 投稿のうち、`CONTENT_TYPE = 'column'` である記事を対象に、直近7日間の各種指標（セッション・PV・クリックなど）を BigQuery 上で集計する。\n  - 併せて、WordPress DB から記事の「カテゴリー情報」を取得・紐づけし、1つのテーブルとして出力する。以下は、今回のクエリ全体の処理内容や意図・各カラムの意味などをまとめたREADME例です。必要に応じて社内用に加筆・修正してください。
 
----
+# README: 
+## 直近7日間の「column」記事データ集計クエリ
 
-# README: 直近7日間の「column」記事データ集計クエリ
+### 出力カラムについて
 
-## 概要
+| カラム名  | 役割・意味                                                     |
+|-----------|----------------------------------------------------------------|
+| A_col (CONTENT_TYPE)     | 記事種別（今回は固定で `column`）。                |
+| B_col (POST_ID)          | WordPress の投稿ID。                             |
+| URL                      | 対象記事のURL。<br>`https://good-apps.jp/media/column/ + post_id`  |
+| C_col (cats)             | 記事に紐づくカテゴリー（カンマ区切り）。           |
+| D_col (post_title)       | 投稿タイトル。                                   |
+| E_col (session)          | セッション数の平均（直近7日）。                  |
+| F_col (page_view)        | ページビュー数の平均（直近7日）。                |
+| G_col (click_app_store)  | アプリストアへのリンククリック数の平均。         |
+| H_col (imp)              | 検索インプレッション数の平均。                   |
+| I_col (click)            | 検索クリック数の平均。                           |
+| J_col (sum_position)     | 検索結果の合計順位（直近7日の平均）。            |
+| K_col (avg_position)     | 検索結果の平均順位（直近7日の平均）。            |
+| L_col (sales)            | 売上（アフィリエイトなどの想定、直近7日の平均）。 |
+| M_col (app_link_click)   | アプリリンクへのクリック数の平均。               |
+| N_col (cv)               | コンバージョン数の平均。                         |
+
+> **補足**：  
+> - `J_col (sum_position)` と `K_col (avg_position)` は検索データの取得元によっては意味合いが異なるケースもあります。<br>
+>   ここではあくまで BigQuery 内のデータフィールドに紐づく値をそのまま利用しています。  
+> - `AVG(...)` で単純平均を取っているため、**累積値ではなく日平均**である点に注意してください。  
+> - テーブル名・カラム名は社内データ基盤の命名に合わせています。
+
+### 概要
 - **目的**  
   - WordPress 投稿のうち、`CONTENT_TYPE = 'column'` である記事を対象に、直近7日間の各種指標（セッション・PV・クリックなど）を BigQuery 上で集計する。
   - 併せて、WordPress DB から記事の「カテゴリー情報」を取得・紐づけし、1つのテーブルとして出力する。
@@ -162,7 +185,7 @@ README_TEXT = """
   - WordPress の投稿ID・タイトル・カテゴリーを紐づけて、記事単位で出力。
   - 最終的には `page_view` の降順（多い順）にソートされた形で取得。
 
-## データ取得範囲
+### データ取得範囲
 ```sql
 DECLARE DS_START_DATE STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY));
 DECLARE DS_END_DATE   STRING DEFAULT FORMAT_DATE('%Y%m%d', CURRENT_DATE());
@@ -171,9 +194,9 @@ DECLARE DS_END_DATE   STRING DEFAULT FORMAT_DATE('%Y%m%d', CURRENT_DATE());
 - `DS_END_DATE`：今日の日付  
 - `wp_content_by_result_*` という日別のパーティション/サフィックス付きテーブルに対して、上記日付範囲 (`_TABLE_SUFFIX BETWEEN DS_START_DATE AND DS_END_DATE`) でのデータを対象にする。
 
-## クエリの構成
+### クエリの構成
 
-### 1. カテゴリー情報の取得（`post_cats` CTE）
+#### 1. カテゴリー情報の取得（`post_cats` CTE）
 ```sql
 WITH post_cats AS (
   SELECT
@@ -189,7 +212,7 @@ WITH post_cats AS (
   を JOIN して**カテゴリー名**を取得。  
 - ひとつの記事に複数カテゴリーがある場合は `STRING_AGG` でカンマ区切りにまとめる。
 
-### 2. メインデータの集計（`main_data` CTE）
+#### 2. メインデータの集計（`main_data` CTE）
 ```sql
 main_data AS (
   SELECT
@@ -222,7 +245,7 @@ main_data AS (
   - `app_link_click`：特定アプリへのリンククリック数
   - `cv`：コンバージョン（CV数）
 
-### 3. 結合・最終SELECT
+#### 3. 結合・最終SELECT
 ```sql
 SELECT
   m.CONTENT_TYPE      AS A_col,
@@ -240,36 +263,11 @@ ORDER BY m.page_view DESC;
 - URL は `post_id` を末尾につけて生成。  
 - **ページビュー数の多い順**でソートして結果を表示。
 
-## 出力カラムについて
 
-| カラム名  | 役割・意味                                                     |
-|-----------|----------------------------------------------------------------|
-| A_col (CONTENT_TYPE)     | 記事種別（今回は固定で `column`）。                |
-| B_col (POST_ID)          | WordPress の投稿ID。                             |
-| URL                      | 対象記事のURL。<br>`https://good-apps.jp/media/column/ + post_id`  |
-| C_col (cats)             | 記事に紐づくカテゴリー（カンマ区切り）。           |
-| D_col (post_title)       | 投稿タイトル。                                   |
-| E_col (session)          | セッション数の平均（直近7日）。                  |
-| F_col (page_view)        | ページビュー数の平均（直近7日）。                |
-| G_col (click_app_store)  | アプリストアへのリンククリック数の平均。         |
-| H_col (imp)              | 検索インプレッション数の平均。                   |
-| I_col (click)            | 検索クリック数の平均。                           |
-| J_col (sum_position)     | 検索結果の合計順位（直近7日の平均）。            |
-| K_col (avg_position)     | 検索結果の平均順位（直近7日の平均）。            |
-| L_col (sales)            | 売上（アフィリエイトなどの想定、直近7日の平均）。 |
-| M_col (app_link_click)   | アプリリンクへのクリック数の平均。               |
-| N_col (cv)               | コンバージョン数の平均。                         |
-
-> **補足**：  
-> - `J_col (sum_position)` と `K_col (avg_position)` は検索データの取得元によっては意味合いが異なるケースもあります。<br>
->   ここではあくまで BigQuery 内のデータフィールドに紐づく値をそのまま利用しています。  
-> - `AVG(...)` で単純平均を取っているため、**累積値ではなく日平均**である点に注意してください。  
-> - テーブル名・カラム名は社内データ基盤の命名に合わせています。
 
 ---
 
-以上がクエリ全体のREADMEです。実行時には日付指定部分が自動計算されるため、**“直近7日間のデータを集計して取得”** という形になります。必要に応じて日付範囲を変更したい場合は、`DS_START_DATE` と `DS_END_DATE` の計算ロジックを修正してください。\n\n
-(以下、適宜社内で加筆・修正)\n"""
+以上がクエリ全体のREADMEです。実行時には日付指定部分が自動計算されるため、**“直近7日間のデータを集計して取得”** という形になります。必要に応じて日付範囲を変更したい場合は、`DS_START_DATE` と `DS_END_DATE` の計算ロジックを修正してください。\n"""
 
 def show_sheet2():
     st.title("シート2: README / 補足情報")
