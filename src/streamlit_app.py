@@ -138,7 +138,8 @@ def show_sheet1():
     st.write(html_table, unsafe_allow_html=True)
 
 ###################################
-# シート2: README / 補足情報
+# ここから下は「表示したくない」READMEなどを
+# コード内に残しておくだけ
 ###################################
 
 README_TEXT = """
@@ -262,8 +263,6 @@ ORDER BY m.page_view DESC;
 - `main_data` と `post_cats` を `post_id` で LEFT JOIN し、投稿のカテゴリー情報を付与する。  
 - URL は `post_id` を末尾につけて生成。  
 - **ページビュー数の多い順**でソートして結果を表示。
-
-
 
 ---
 
