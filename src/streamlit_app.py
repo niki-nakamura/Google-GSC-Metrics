@@ -17,8 +17,9 @@ def streamlit_main():
     st.markdown(
         """
         <style>
+        /* タイトル検索/ID検索のテキストボックスを狭く */
         input[type=text] {
-            width: 150px !important; /* タイトル検索/ID検索のテキストボックスを狭く */
+            width: 150px !important;
         }
         </style>
         """,
@@ -57,52 +58,29 @@ def streamlit_main():
     if id_search and "id" in df.columns:
         df = df[df["id"].astype(str).str.contains(id_search, na=False)]
 
-    # category分割: カンマ区切りを分離して複数カテゴリ扱いに
+    # category分割: カンマ区切りを分割して複数カテゴリ扱いに
     if "category" in df.columns:
         # 「ツール,広告ブロック」→ ["ツール", "広告ブロック"] のように分割
         df["split_categories"] = df["category"].fillna("").apply(
             lambda x: [c.strip() for c in x.split(",") if c.strip()]
         )
-        # 全行のカテゴリをまとめて集合化 -> プルダウン候補
+        # 全行のカテゴリをまとめてプルダウン候補に
         unique_cats = set()
         for cats in df["split_categories"]:
             unique_cats.update(cats)
-        unique_cats = sorted(unique_cats)  # ソートしておく
+        unique_cats = sorted(unique_cats)  # ソート
         category_selected = st.selectbox("category を絞り込み", ["すべて"] + unique_cats)
 
         # 「すべて」以外が選ばれたら、そのカテゴリを含む行を抽出
         if category_selected != "すべて":
             df = df[df["split_categories"].apply(lambda catlist: category_selected in catlist)]
 
-    # URL列をリンク化
-    if "URL" in df.columns:
-        def make_clickable(url):
-            url = str(url)
-            if url.startswith("http"):
-                return f'<a href="{url}" target="_blank">{url}</a>'
-            else:
-                return url
-        df["URL"] = df["URL"].apply(make_clickable)
-
-    # 表示用のCSS: 列幅を狭め、テキストを省略表示
-    st.markdown(
-        """
-        <style>
-        table.dataframe td, table.dataframe th {
-            max-width: 150px;
-            text-overflow: ellipsis;
-            overflow: hidden;
-            white-space: nowrap;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
+    # URL 列はそのまま文字列として表示（st.dataframe はHTMLを解釈しない）
+    # クリック機能は無くなるが、元の st.dataframe スタイル表示に戻す
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # HTMLテーブルで表示 (URLクリック可能)
-    st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+    # 元のスタイルで表示：デフォルトの表形式
+    st.dataframe(df, use_container_width=True)
 
 if __name__ == "__main__":
     streamlit_main()
