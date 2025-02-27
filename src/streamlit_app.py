@@ -5,6 +5,10 @@ from data_fetcher import main_fetch_all
 # ページ全体をワイド表示に
 st.set_page_config(layout="wide")
 
+###################################
+# Sheet1: CSV Viewer
+###################################
+
 def load_data() -> pd.DataFrame:
     """CSV を読み込む。ない場合は空DataFrameを返す"""
     try:
@@ -12,8 +16,7 @@ def load_data() -> pd.DataFrame:
     except:
         return pd.DataFrame()
 
-def streamlit_main():
-    # 全体用のCSS: テキストボックスを最小幅にする
+def show_sheet1():
     st.markdown(
         """
         <style>
@@ -56,12 +59,10 @@ def streamlit_main():
         unsafe_allow_html=True
     )
 
-    # 項目定義をなるべくコンパクトに
     st.markdown("""
     **項目定義**: ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
-    # CSV データ読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
@@ -81,7 +82,7 @@ def streamlit_main():
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{total_pv}")
 
-    # カテゴリをカンマ分割してリスト化（「ツール,広告ブロック」 → ["ツール","広告ブロック"]）
+    # カテゴリ分割
     unique_cats = []
     if "category" in df.columns:
         df["split_categories"] = df["category"].fillna("").apply(
@@ -107,9 +108,11 @@ def streamlit_main():
     # フィルタ1: タイトル検索
     if title_search and "title" in df.columns:
         df = df[df["title"].astype(str).str.contains(title_search, na=False)]
+
     # フィルタ2: ID検索
     if id_search and "id" in df.columns:
         df = df[df["id"].astype(str).str.contains(id_search, na=False)]
+
     # フィルタ3: カテゴリ選択
     if category_selected != "すべて" and "split_categories" in df.columns:
         df = df[df["split_categories"].apply(lambda catlist: category_selected in catlist)]
@@ -121,10 +124,9 @@ def streamlit_main():
         def make_clickable(url):
             url = str(url)
             if url.startswith("http"):
-                # style=\"text-align:right;\" で右寄せ
-                return f'<div style=\"text-align:right;\"><a href=\"{url}\" target=\"_blank\">{url}</a></div>'
+                return f'<div style="text-align:right;"><a href="{url}" target="_blank">{url}</a></div>'
             else:
-                return f'<div style=\"text-align:right;\">{url}</div>'
+                return f'<div style="text-align:right;">{url}</div>'
         df["URL"] = df["URL"].apply(make_clickable)
 
     # HTMLテーブルとして表示 (角丸CSS適用)
@@ -134,6 +136,29 @@ def streamlit_main():
         classes=["customtable"]
     )
     st.write(html_table, unsafe_allow_html=True)
+
+###################################
+# Sheet2: README (補足情報)
+###################################
+
+README_TEXT = """
+# README: 直近7日間の「column」記事データ集計クエリ\n\n
+## 概要\n- **目的**\n  - WordPress 投稿のうち、`CONTENT_TYPE = 'column'` である記事を対象に、直近7日間の各種指標（セッション・PV・クリックなど）を BigQuery 上で集計する。\n  - 併せて、WordPress DB から記事の「カテゴリー情報」を取得・紐づけし、1つのテーブルとして出力する。\n\n
+(以下、適宜社内で加筆・修正)\n"""
+
+def show_sheet2():
+    st.title("シート2: README / 補足情報")
+    st.markdown(README_TEXT)
+
+
+def streamlit_main():
+    # 2つのタブを用意
+    tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
+
+    with tab1:
+        show_sheet1()
+    with tab2:
+        show_sheet2()
 
 if __name__ == "__main__":
     streamlit_main()
