@@ -144,7 +144,6 @@ def show_sheet1():
 
 README_TEXT = """
 
-# README: 
 ## 直近7日間の「column」記事データ集計クエリ
 
 ### 出力カラムについて
@@ -269,7 +268,7 @@ ORDER BY m.page_view DESC;
 以上がクエリ全体のREADMEです。実行時には日付指定部分が自動計算されるため、**“直近7日間のデータを集計して取得”** という形になります。必要に応じて日付範囲を変更したい場合は、`DS_START_DATE` と `DS_END_DATE` の計算ロジックを修正してください。\n"""
 
 def show_sheet2():
-    st.title("シート2: README / 補足情報")
+    st.title("### README:")
     st.markdown(README_TEXT)
 
 
