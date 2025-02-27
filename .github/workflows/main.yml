@@ -1,9 +1,12 @@
 name: Scheduled Fetch & Commit CSV
 
 on:
-  workflow_dispatch:      # 手動実行
+  workflow_dispatch:
   schedule:
-    - cron: '0 9 * * *'   # 毎日9時
+    - cron: '0 9 * * *'
+
+permissions:
+  contents: write   # ← リポジトリのコンテンツ(ファイル)への書き込みを許可
 
 jobs:
   fetch_and_commit:
@@ -29,11 +32,9 @@ jobs:
           EOF
 
       - name: Debug credentials
-        if: false  # ← 機密漏えい防止のため本番では無効に推奨
+        if: false
         run: |
-          echo "---- credentials.json content ----"
           cat credentials.json
-          echo "----------------------------------"
 
       - name: Run data_fetcher to generate CSV
         run: python src/data_fetcher.py
