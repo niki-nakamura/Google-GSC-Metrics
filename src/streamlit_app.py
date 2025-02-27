@@ -13,6 +13,10 @@ def load_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 def streamlit_main():
+
+    # タイトルを最初に挿入
+    st.title("📈 G!A SEO指標｜GS × GSC × BQ with Streamlit")
+    
     # 全体用のCSS: テキストボックスを最小幅にする
     st.markdown(
         """
