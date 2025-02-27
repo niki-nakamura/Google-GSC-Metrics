@@ -138,7 +138,7 @@ def show_sheet1():
     st.write(html_table, unsafe_allow_html=True)
 
 ###################################
-# Sheet2: README (補足情報)
+ # Sheet2: README (補足情報)
 ###################################
 
 README_TEXT = """
