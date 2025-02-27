@@ -21,12 +21,41 @@ def streamlit_main():
         input[type=text] {
             width: 150px !important;
         }
+
+        /* HTMLテーブルの角丸・枠線などのスタイル */
+        table.customtable {
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden; /* 角丸を適用するため */
+            width: 100%;
+        }
+        table.customtable thead tr:first-child th:first-child {
+            border-top-left-radius: 8px;
+        }
+        table.customtable thead tr:first-child th:last-child {
+            border-top-right-radius: 8px;
+        }
+        table.customtable tbody tr:last-child td:first-child {
+            border-bottom-left-radius: 8px;
+        }
+        table.customtable tbody tr:last-child td:last-child {
+            border-bottom-right-radius: 8px;
+        }
+
+        table.customtable td, table.customtable th {
+            padding: 6px 8px;
+            max-width: 150px;       /* 必要に応じて幅を固定 */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    # 一番上に項目の定義
     st.markdown("""
     ## 項目の定義
     - **CV** : コンバージョン（アプリのダウンロード数 等）
@@ -48,13 +77,12 @@ def streamlit_main():
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{total_pv}")
 
-    # カテゴリをカンマ分割してリスト化（「ツール,広告ブロック」を ["ツール", "広告ブロック"] に）
+    # カテゴリをカンマ分割してリスト化
     unique_cats = []
     if "category" in df.columns:
         df["split_categories"] = df["category"].fillna("").apply(
             lambda x: [c.strip() for c in x.split(",") if c.strip()]
         )
-        # プルダウン用の全カテゴリの集合を作る
         cat_set = set()
         for cats in df["split_categories"]:
             cat_set.update(cats)
@@ -86,8 +114,23 @@ def streamlit_main():
 
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # 元のst.dataframeのスタイルに戻す + 高さ大きめ指定
-    st.dataframe(df, use_container_width=True, height=1200)
+    # URLをクリック可能に (HTMLリンク化)
+    if "URL" in df.columns:
+        def make_clickable(url):
+            url = str(url)
+            if url.startswith("http"):
+                return f'<a href="{url}" target="_blank">{url}</a>'
+            else:
+                return url
+        df["URL"] = df["URL"].apply(make_clickable)
+
+    # HTMLテーブルとして表示 (角丸CSS適用)
+    html_table = df.to_html(
+        escape=False,
+        index=False,
+        classes=["customtable"]
+    )
+    st.write(html_table, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     streamlit_main()
