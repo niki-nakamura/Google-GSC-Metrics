@@ -23,8 +23,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Create credentials.json from Secrets
-        run: echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > credentials.json
+      - name: Create credentials.json
+  run: |
+    cat <<EOF > credentials.json
+    ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+    EOF
 
       - name: Debug credentials
         if: false  # ← 機密漏えい防止のため本番では無効に推奨
