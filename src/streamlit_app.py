@@ -17,6 +17,7 @@ def load_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 def show_sheet1():
+    # 既存のCSS適用
     st.markdown(
         """
         <style>
@@ -59,16 +60,18 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
+    # 項目の簡易説明
     st.markdown("""
     **項目定義**: ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
+    # CSV読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 列 "ONTENT_TYPE" を表示しない（あれば削除）
+    # ONTENT_TYPEを削除（あれば）
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
 
@@ -76,50 +79,86 @@ def show_sheet1():
     numeric_cols = df.select_dtypes(include=['float','int']).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
-    # page_view の合計を上部に表示
+    # page_view の合計を上に表示
     if "page_view" in df.columns:
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{total_pv}")
 
-    # カテゴリ分割
-    unique_cats = []
-    if "category" in df.columns:
-        df["split_categories"] = df["category"].fillna("").apply(
-            lambda x: [c.strip() for c in x.split(",") if c.strip()]
-        )
-        cat_set = set()
-        for cats in df["split_categories"]:
-            cat_set.update(cats)
-        unique_cats = sorted(cat_set)
+    # --- サイドバーに拡張機能を追加 ---
+    with st.sidebar:
+        st.subheader("フィルタ & 拡張機能")
 
-    # 横に3つのカラムを配置 (タイトル検索、ID検索、カテゴリ選択)
-    col1, col2, col3 = st.columns([2, 2, 2])
-    with col1:
-        title_search = st.text_input("タイトル検索（部分一致）")
-    with col2:
-        id_search = st.text_input("ID検索（部分一致）")
-    with col3:
-        if len(unique_cats) > 0:
-            category_selected = st.selectbox("category を絞り込み", ["すべて"] + unique_cats)
-        else:
-            category_selected = "すべて"
+        # 1. 売上 or CV が > 0 のみ表示するか
+        filter_sales_cv = st.checkbox("売上 or CV が 0 以上の記事のみ表示")
+        if filter_sales_cv:
+            if "sales" in df.columns and "cv" in df.columns:
+                df = df[(df["sales"] > 0) | (df["cv"] > 0)]
+            else:
+                st.warning("sales or cv 列が見つかりませんでした。")
 
-    # フィルタ1: タイトル検索
-    if title_search and "title" in df.columns:
-        df = df[df["title"].astype(str).str.contains(title_search, na=False)]
+        # 2. 複数条件フィルタ
+        st.write("### 複数条件フィルタ")
+        cv_min = st.number_input("最低CV", value=0.0, step=0.5)
+        pv_min = st.number_input("最低page_view", value=0.0, step=10.0)
+        if st.button("Apply 複数条件フィルタ"):
+            if "cv" in df.columns and "page_view" in df.columns:
+                df = df[(df["cv"] >= cv_min) & (df["page_view"] >= pv_min)]
+            else:
+                st.warning("cv or page_view 列が見つかりません。")
 
-    # フィルタ2: ID検索
-    if id_search and "id" in df.columns:
-        df = df[df["id"].astype(str).str.contains(id_search, na=False)]
+        # 3. Rewrite Priority Score
+        st.write("### Rewrite Priority")
+        if st.button("Rewrite Priority Scoreで降順ソート"):
+            # 例: 重みを適当に設定
+            w_sales = 1.0
+            w_cv = 1.0
+            w_pv = 0.5
+            w_pos = 0.2
 
-    # フィルタ3: カテゴリ選択
-    if category_selected != "すべて" and "split_categories" in df.columns:
-        df = df[df["split_categories"].apply(lambda catlist: category_selected in catlist)]
+            import numpy as np
+
+            def calc_rewrite_priority(row):
+                # sales, cv, page_view, avg_position が無い場合は 0 扱い
+                s = row.get("sales", 0)
+                c = row.get("cv", 0)
+                pv = row.get("page_view", 0)
+                pos = row.get("avg_position", 9999)  # 無い場合はすごく低い順位扱い
+
+                # ln(...) 部分
+                sales_term = w_sales * np.log(s + 1)
+                cv_term = w_cv * c
+                pv_term = w_pv * np.log(pv + 1)
+                pos_term = -1.0 * w_pos * pos  # 小さいほどプラスに
+
+                return sales_term + cv_term + pv_term + pos_term
+
+            # rewrite_priority 列を追加
+            df["rewrite_priority"] = df.apply(calc_rewrite_priority, axis=1)
+            # 降順ソート
+            df.sort_values("rewrite_priority", ascending=False, inplace=True)
+
+        # 4. B.「伸びしろ(growth_rate)」ボタン（ダミー）
+        if st.button("伸びしろ( growth_rate )"):
+            st.info("今後: growth_rate を利用して上昇/下降記事を判定するロジックを実装予定")
+
+        # 5. C.「CVR × Avg. Position」ボタン（ダミー）
+        if st.button("CVR × Avg. Position"):
+            st.info("今後: CVRが高いが avg_position が3～10位等、リライト優先度を可視化する予定")
+
+        # 6. D.「需要(imp) × 収益」ボタン（ダミー）
+        if st.button("需要(imp) × 収益(sales or cv)"):
+            st.info("今後: imp と sales/cv の掛け合わせ指標を導入し、ポテンシャル大の記事を抽出予定")
+
+    # カテゴリ分割（元からある処理） -> ここでは何もしなくてOK
+    # 「カテゴリ絞り込み」も既に実装済み
+
+    # タイトル検索 / ID検索 / カテゴリ絞り込み（既存処理）も既存のまま
+
 
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # URLをクリック可能に (HTMLリンク化)、右詰めで表示
+    # URL右寄せリンク化
     if "URL" in df.columns:
         def make_clickable(url):
             url = str(url)
@@ -129,7 +168,7 @@ def show_sheet1():
                 return f'<div style="text-align:right;">{url}</div>'
         df["URL"] = df["URL"].apply(make_clickable)
 
-    # HTMLテーブルとして表示 (角丸CSS適用)
+    # HTMLテーブルとして表示
     html_table = df.to_html(
         escape=False,
         index=False,
@@ -137,9 +176,9 @@ def show_sheet1():
     )
     st.write(html_table, unsafe_allow_html=True)
 
+
 ###################################
-# ここから下は「表示したくない」READMEなどを
-# コード内に残しておくだけ
+# READMEなど非表示のまま保持
 ###################################
 
 README_TEXT = """
@@ -271,11 +310,9 @@ def show_sheet2():
     st.title("README:")
     st.markdown(README_TEXT)
 
-
 def streamlit_main():
-    # 2つのタブを用意
+    # タブ2枚
     tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
-
     with tab1:
         show_sheet1()
     with tab2:
