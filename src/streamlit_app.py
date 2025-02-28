@@ -30,49 +30,54 @@ def show_sheet1():
     st.markdown(
         """
         <style>
-        /* タイトル/ID 用の text_input を狭く */
-        input[type=text] {
-            width: 150px !important;
-        }
+/* 表全体をブロック要素化し、縦スクロールできるように */
+table.customtable {
+    display: block;               /* ブロック要素として扱う */
+    max-height: 600px;           /* 表示エリアの高さを仮に600pxに制限 */
+    overflow-y: auto;            /* 縦スクロールバーを出す */
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    width: 100%;
+}
 
-        /* テーブル全体のデザイン */
-        table.customtable {
-            border-collapse: separate;
-            border-spacing: 0;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            overflow: hidden;
-            width: 100%;
-        }
-        /* 角丸設定 */
-        table.customtable thead tr:first-child th:first-child {
-            border-top-left-radius: 8px;
-        }
-        table.customtable thead tr:first-child th:last-child {
-            border-top-right-radius: 8px;
-        }
-        table.customtable tbody tr:last-child td:first-child {
-            border-bottom-left-radius: 8px;
-        }
-        table.customtable tbody tr:last-child td:last-child {
-            border-bottom-right-radius: 8px;
-        }
+/* thead と tbody それぞれをテーブル扱いにして幅を合わせる */
+table.customtable thead,
+table.customtable tbody {
+    display: table;
+    width: 100%;
+    table-layout: fixed; /* 固定レイアウトでセル幅を揃える */
+}
 
-        /* ヘッダー部分のセルも nowrap + 横スクロール可能にする */
-        table.customtable thead th .header-content {
-            display: inline-block;
-            max-width: 120px;      /* 列幅をある程度固定 */
-            white-space: nowrap;   /* 改行を許可しない */
-            overflow-x: auto;      /* はみ出す場合はスクロール */
-        }
+/* 角丸が崩れる場合、個別に指定し直す場合もある */
+/* 位置がずれる可能性があるため、見た目を微調整してください */
 
-        /* 本文セルの中身を横スクロール許可 */
-        table.customtable td .cell-content {
-            display: inline-block;
-            max-width: 150px;
-            white-space: nowrap;
-            overflow-x: auto;
-        }
+/* ヘッダーのセルを上端に固定 */
+table.customtable thead th {
+    position: sticky;      /* スクロールしても固定 */
+    top: 0;                /* ページ最上部を基準に固定 */
+    background-color: #fff;/* 背景色を付けてスクロール時に判別しやすく */
+    z-index: 2;            /* 本文セルより前面に出す */
+    white-space: nowrap;   /* ヘッダー文字を一行で表示 */
+    overflow-x: auto;      /* はみ出す場合に横スクロール */
+}
+
+/* セル内部の横スクロール等は、以前と同じ設定でOK */
+table.customtable thead th .header-content {
+    display: inline-block;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+table.customtable tbody td .cell-content {
+    display: inline-block;
+    max-width: 150px;
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
         </style>
         """,
         unsafe_allow_html=True
@@ -396,5 +401,4 @@ def streamlit_main():
 
 if __name__ == "__main__":
     streamlit_main()
-
 
