@@ -294,11 +294,12 @@ def show_sheet1():
 # (Hidden) README doc
 ###################################
 
+def some_function():
+    """
+
 # README: 直近7日間の「column」記事データ集計クエリ
 
 ## 概要
-def some_function():
-    """
 
 - **目的**  
   - WordPress 投稿のうち`CONTENT_TYPE = 'column'` である記事を対象に、**直近7日間**の各種指標（セッション数、PV数、クリックなど）を BigQuery 上で集計する。  
