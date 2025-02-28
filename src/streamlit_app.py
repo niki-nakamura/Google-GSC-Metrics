@@ -1,20 +1,15 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from data_fetcher import main_fetch_all
 import html
+from data_fetcher import main_fetch_all
 
 # ページ全体を横幅を広めに使う設定
 st.set_page_config(layout="wide")
 
-###################################
-# CSVデータを読み込み、表示する関数
-###################################
-
 def load_data() -> pd.DataFrame:
     """
-    sheet_query_data.csv を読み込んで DataFrame を返す。
-    読み込みに失敗したら空の DataFrame を返す。
+    sheet_query_data.csv を読み込み、失敗したら空DataFrameを返す。
     """
     try:
         return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
@@ -23,28 +18,24 @@ def load_data() -> pd.DataFrame:
 
 def show_sheet1():
     """
-    CSVを読み込んで表示。以下の点に対応:
-      1. sum_position 列を非表示
-      2. page_view の合計を小数点第一位で表示
-      3. 新しく追加された 4項目(SEO対策KW, 30日間平均順位, 7日間平均順位, 比較(7日間が良ければ+))を
-         post_title 列の直後に挿入して表示
-      4. 表のセル内が長い場合、横スクロールできるようにして
-         見切れた文字を確認できる工夫を施す
-      5. growth_rate の簡易ロジックを追加し、ボタンを押したら列を表示
+    CSVを読み込んで表示する。
+    - sum_position 列を非表示
+    - page_view合計を小数点第一位
+    - 新規4項目を post_title の直後に挿入
+    - 列ヘッダーとセルを一行化し、長い場合は横スクロールできるようにする
+    - growth_rate ボタンで計算列を追加
     """
 
-    # ------------------------------------------------
-    # CSS: HTMLテーブルの角丸や枠線, セル内スクロールを追加
-    # ------------------------------------------------
+    # CSS: テーブルの角丸、ヘッダ・セルのスクロール設定など
     st.markdown(
         """
         <style>
-        /* タイトル / ID 用の text_input を狭く */
+        /* タイトル/ID 用の text_input を狭く */
         input[type=text] {
             width: 150px !important;
         }
 
-        /* テーブルの角丸・枠線設定 */
+        /* テーブル全体のデザイン */
         table.customtable {
             border-collapse: separate;
             border-spacing: 0;
@@ -53,6 +44,7 @@ def show_sheet1():
             overflow: hidden;
             width: 100%;
         }
+        /* 角丸設定 */
         table.customtable thead tr:first-child th:first-child {
             border-top-left-radius: 8px;
         }
@@ -66,82 +58,73 @@ def show_sheet1():
             border-bottom-right-radius: 8px;
         }
 
-        /* セル内を固定幅にしつつ、横スクロールできるようにする */
-        table.customtable td .cell-content {
-            display: inline-block;     /* インラインブロック */
-            max-width: 150px;         /* 横幅固定 */
-            overflow-x: auto;         /* 横スクロールを許可 */
-            white-space: nowrap;      /* 折り返さない */
-            vertical-align: top;
+        /* ヘッダー部分のセルも nowrap + 横スクロール可能にする */
+        table.customtable thead th .header-content {
+            display: inline-block;
+            max-width: 120px;      /* 列幅をある程度固定 */
+            white-space: nowrap;   /* 改行を許可しない */
+            overflow-x: auto;      /* はみ出す場合はスクロール */
         }
 
-        /* セルとヘッダの共通スタイル */
-        table.customtable td, table.customtable th {
-            padding: 6px 8px;
-            text-overflow: ellipsis;
+        /* 本文セルの中身を横スクロール許可 */
+        table.customtable td .cell-content {
+            display: inline-block;
+            max-width: 150px;
+            white-space: nowrap;
+            overflow-x: auto;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    # 主な項目の簡単な説明
+    # 項目定義の簡易説明
     st.markdown("""
     **項目定義**:  
     ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
-    # CSV を読み込み
+    # CSV読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 不要な列(ONTENT_TYPE / sum_position)があれば削除
+    # 不要な列を消す
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
     if "sum_position" in df.columns:
         df.drop(columns=["sum_position"], inplace=True)
 
-    # -------------------------------
-    # 新しい4項目を post_title の直後に表示
-    # 例: カラム名 "SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）"
-    # （実際にCSVに入っているカラム名が一致する必要あり）
-    # -------------------------------
+    # 例: 新規4項目を post_title の後ろに並べる
     new_cols = ["SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）"]
-    # 存在するものだけを取り出して後で差し込む
     actual_new_cols = [c for c in new_cols if c in df.columns]
-
-    # post_title の位置を取得
     if "post_title" in df.columns:
         idx_post_title = df.columns.get_loc("post_title")
-        # 既存のカラムリストを編集して、new_colsをpost_title直後に挿入
+        # まず new_cols を削除しておく（既存順序から外す）
         col_list = list(df.columns)
-        # まず new_cols をcol_listから削除（重複を防ぐ）:
         for c in actual_new_cols:
             if c in col_list:
                 col_list.remove(c)
-        # post_title の後ろに逆順でinsert
+        # post_title の直後に挿入
         for c in reversed(actual_new_cols):
             col_list.insert(idx_post_title+1, c)
         df = df[col_list]
 
     # 数値列を小数点以下1桁に丸める
-    numeric_cols = df.select_dtypes(include=["float", "int"]).columns
+    numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
-    # page_view の合計を表示 (小数点第一位まで)
+    # page_view合計を小数点第一位で表示
     if "page_view" in df.columns:
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
         total_pv = df["page_view_numeric"].sum()
-        total_pv_rounded = round(total_pv, 1)
-        st.metric("page_view の合計", f"{total_pv_rounded}")
+        st.metric("page_view の合計", f"{round(total_pv, 1)}")
 
     st.write("### フィルタ & 拡張機能")
 
-    # 1行目: (col1-col4)
+    # 1行目
     col1, col2, col3, col4 = st.columns([2.5, 2, 2, 2.5])
-
     with col1:
         filter_sales_cv = st.checkbox("売上 or CV が 0 以上のみ表示")
     with col2:
@@ -151,9 +134,8 @@ def show_sheet1():
     with col4:
         apply_multi_btn = st.button("Apply 複数条件フィルタ")
 
-    # 2行目: (colA-colD)
+    # 2行目
     colA, colB, colC, colD = st.columns([2.5, 2, 2, 2.5])
-
     with colA:
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
     with colB:
@@ -163,9 +145,7 @@ def show_sheet1():
     with colD:
         imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
 
-    # -------------- フィルタ処理 --------------
-
-    # A) sales>0 or cv>0 フィルタ
+    # ------ フィルタロジック ------
     if filter_sales_cv:
         if "sales" in df.columns:
             df["sales"] = pd.to_numeric(df["sales"], errors="coerce").fillna(0)
@@ -174,9 +154,8 @@ def show_sheet1():
         if "sales" in df.columns and "cv" in df.columns:
             df = df[(df["sales"] > 0) | (df["cv"] > 0)]
         else:
-            st.warning("sales や cv 列が見つからないため、フィルタを適用できません。")
+            st.warning("sales や cv 列が無いためフィルタできません。")
 
-    # B) 複数条件フィルタ
     if apply_multi_btn:
         if "cv" in df.columns:
             df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
@@ -185,83 +164,89 @@ def show_sheet1():
         if "cv" in df.columns and "page_view" in df.columns:
             df = df[(df["cv"] >= cv_min) & (df["page_view"] >= pv_min)]
         else:
-            st.warning("cv または page_view 列が見つかりません。")
+            st.warning("cv や page_view 列が無いためフィルタできません。")
 
-    # C) Rewrite Priorityスコア
+    # Rewrite Priority スコア計算
     if rewrite_priority_btn:
-        for colname in ["sales", "cv", "page_view", "avg_position"]:
-            if colname in df.columns:
-                df[colname] = pd.to_numeric(df[colname], errors="coerce").fillna(0)
+        for cname in ["sales","cv","page_view","avg_position"]:
+            if cname in df.columns:
+                df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
 
         w_sales = 1.0
-        w_cv = 1.0
-        w_pv = 0.5
-        w_pos = 0.2
+        w_cv    = 1.0
+        w_pv    = 0.5
+        w_pos   = 0.2
 
         def calc_rewrite_priority(row):
-            s = float(row.get("sales", 0))
-            c = float(row.get("cv", 0))
-            pv = float(row.get("page_view", 0))
-            pos = float(row.get("avg_position", 9999))
-            if s < 0: s = 0
-            if pv < 0: pv = 0
-            s_term = np.log(s + 1)
-            c_term = c
-            pv_term = np.log(pv + 1)
-            pos_term = -pos
-            # 重み付け
-            return (w_sales*s_term) + (w_cv*c_term) + (w_pv*pv_term) + (w_pos*pos_term)
+            s   = max(0, float(row.get("sales", 0)))
+            c   = max(0, float(row.get("cv", 0)))
+            pv  = max(0, float(row.get("page_view", 0)))
+            pos = float(row.get("avg_position",9999))
+            s_term = np.log(s+1)*w_sales
+            c_term = c*w_cv
+            pv_term = np.log(pv+1)*w_pv
+            pos_term = -pos*w_pos
+            return s_term + c_term + pv_term + pos_term
 
         df["rewrite_priority"] = df.apply(calc_rewrite_priority, axis=1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
-    # 伸びしろ(growth_rate) の機能
+    # growth_rate ダミー計算
     if growth_btn:
-        # 例: page_view を元に、適当な成長率を計算してみる（ダミー）
         if "page_view" in df.columns:
             df["page_view"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
-            # (ダミー) growth_rate = ((page_view+1)/(page_view+5)-1)*100
             df["growth_rate"] = ((df["page_view"] + 1) / (df["page_view"] + 5) - 1) * 100
             df["growth_rate"] = df["growth_rate"].round(1)
         else:
-            st.warning("page_view 列が無いので growth_rate を計算できません。")
+            st.warning("page_view が無いので growth_rate を計算できません。")
 
     if cvr_btn:
-        st.info("CVR×avg_position の抽出ロジックを今後実装予定。")
+        st.info("CVR×avg_position の抽出機能は今後実装予定。")
 
     if imp_sales_btn:
-        st.info("imp×sales などでポテンシャルを評価する指標を今後追加予定。")
+        st.info("imp×sales 等でポテンシャル評価する機能を今後追加予定。")
 
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # ------------- 表示用: セルごとに <div class="cell-content"> で包む -------------
-    # まず、URL列を右寄せ＆クリック可能にする特別処理
+    # ---------------------------
+    # セル表示の横スクロール対応
+    # ---------------------------
+    def wrap_cell(val):
+        """セルの内容を横スクロール可能にする"""
+        s = str(val)
+        # HTMLエスケープ
+        s_esc = html.escape(s)
+        return f'<div class="cell-content">{s_esc}</div>'
+
+    # URL列だけは右寄せクリック対応
     if "URL" in df.columns:
         def clickable_url(cell):
-            # 右寄せ + クリック対応
             cell_str = str(cell)
             if cell_str.startswith("http"):
-                return f'<div class="cell-content" style="text-align:right;"><a href="{cell_str}" target="_blank">{cell_str}</a></div>'
+                cell_esc = html.escape(cell_str)
+                return f'<div class="cell-content" style="text-align:right;"><a href="{cell_esc}" target="_blank">{cell_esc}</a></div>'
             else:
-                return f'<div class="cell-content" style="text-align:right;">{cell_str}</div>'
+                return f'<div class="cell-content" style="text-align:right;">{html.escape(cell_str)}</div>'
         df["URL"] = df["URL"].apply(clickable_url)
 
-    # 他のセルも <div class="cell-content"> で包んで横スクロールOKにする
-    def wrap_cell(val):
-        """横スクロールできるように <div class="cell-content"> で包む"""
-        val_str = str(val)
-        # HTMLエスケープしておかないと危険
-        val_esc = html.escape(val_str)
-        return f'<div class="cell-content">{val_esc}</div>'
-
-    # URL 列以外を wrap する
+    # 他の列は wrap_cell で処理
     for col in df.columns:
         if col != "URL":
             df[col] = df[col].apply(wrap_cell)
 
-    # DataFrame を HTML テーブルとして描画
+    # ---------------------------
+    # ヘッダー（th）にも横スクロールを仕込む
+    # ---------------------------
+    # 既存の列名に <div class="header-content"> を包む
+    new_cols = []
+    for c in df.columns:
+        c_esc = html.escape(c)
+        new_cols.append(f'<div class="header-content">{c_esc}</div>')
+    df.columns = new_cols
+
+    # HTMLテーブル出力
     html_table = df.to_html(
-        escape=False,       # すでにHTML化してるので False
+        escape=False,  # wrap済みなのでエスケープは不要
         index=False,
         classes=["customtable"]
     )
