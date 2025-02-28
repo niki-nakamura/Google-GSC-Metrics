@@ -68,8 +68,7 @@ def show_sheet1():
     # 主な項目の簡単な説明
     st.markdown("""
     **項目定義**:  
-    ID=一意ID, title=記事名, category=分類, CV=コンバージョン,  
-    page_view=PV数, URL=リンク先 等
+    ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
     # CSV読み込み
