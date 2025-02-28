@@ -3,17 +3,17 @@ import pandas as pd
 import numpy as np
 from data_fetcher import main_fetch_all
 
-# Configure the page layout in wide mode for more horizontal space
+# ページ全体を横幅いっぱいに使う
 st.set_page_config(layout="wide")
 
 ###################################
-# Sheet1: CSV Viewer
+# シート表示関数
 ###################################
 
 def load_data() -> pd.DataFrame:
     """
-    Attempts to read the CSV file 'sheet_query_data.csv'.
-    If reading fails, returns an empty DataFrame instead.
+    CSVファイル(sheet_query_data.csv)を読み込み、
+    失敗した場合は空のDataFrameを返す。
     """
     try:
         return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
@@ -22,26 +22,23 @@ def load_data() -> pd.DataFrame:
 
 def show_sheet1():
     """
-    Main function for displaying the CSV data plus
-    our new horizontal arrangement of filters and buttons.
+    CSVを読み込み、フィルタ機能やRewrite Priority Scoreを含むUIを表示。
+    横並びで要素を配置し、事前にカラムを数値型へ変換してエラーを防止する。
     """
 
-    # Inject custom CSS to style the table (rounded corners, etc.)
+    # HTMLテーブルの角丸・幅調整などのCSS
     st.markdown(
         """
         <style>
-        /* Make text inputs (for title/ID, etc.) narrower */
         input[type=text] {
-            width: 150px !important;
+            width: 150px !important; /* タイトル・ID検索を狭く */
         }
-
-        /* HTML table styling: border, rounding, etc. */
         table.customtable {
             border-collapse: separate;
             border-spacing: 0;
             border: 1px solid #ddd;
             border-radius: 8px;
-            overflow: hidden; /* keeps corners actually rounded */
+            overflow: hidden;
             width: 100%;
         }
         table.customtable thead tr:first-child th:first-child {
@@ -58,7 +55,7 @@ def show_sheet1():
         }
         table.customtable td, table.customtable th {
             padding: 6px 8px;
-            max-width: 150px; 
+            max-width: 150px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -68,105 +65,103 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    # A short explanation of key columns (unchanged).
+    # 主な項目の簡単な説明
     st.markdown("""
-    **項目定義**: 
-    ID=一意ID, title=記事名, category=分類, CV=コンバージョン, 
+    **項目定義**:  
+    ID=一意ID, title=記事名, category=分類, CV=コンバージョン,  
     page_view=PV数, URL=リンク先 等
     """)
 
-    # 1) Load data from CSV
+    # CSV読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 2) Remove 'ONTENT_TYPE' if it exists
+    # 不要な列を削除（存在すれば）
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
 
-    # 3) Round numeric columns to one decimal
+    # 数値列を小数点以下1桁に丸める
     numeric_cols = df.select_dtypes(include=["float", "int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
-    # 4) If page_view column is present, compute total and show a metric
+    # page_view合計を表示
     if "page_view" in df.columns:
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{total_pv}")
 
-    # ---------------------
-    # Place our filter & extension features HORIZONTALLY
-    # We'll do multiple columns, so they appear side-by-side
-    # ---------------------
     st.write("### フィルタ & 拡張機能")
 
-    # Row 1: 
-    #   - (col1) A checkbox for "売上 or CV > 0"
-    #   - (col2) "最低CV" input
-    #   - (col3) "最低page_view" input
-    #   - (col4) Button to apply the multiple filter
-    row1_col1, row1_col2, row1_col3, row1_col4 = st.columns([2, 2, 2, 2])
+    # -----------------------------
+    # 1行目 (col1-col4) 
+    # 横に並べたチェックボックス・数値入力・ボタン
+    # -----------------------------
+    col1, col2, col3, col4 = st.columns([2.5, 2, 2, 2.5])
 
-    # A) Checkbox: sales or cv > 0
-    with row1_col1:
-        filter_sales_cv = st.checkbox("売上 or CV が 0 以上の記事のみ表示")
+    with col1:
+        filter_sales_cv = st.checkbox("売上 or CV が 0 以上のみ表示")
 
-    # B) Numeric inputs for multiple-condition filter
-    with row1_col2:
+    with col2:
         cv_min = st.number_input("最低CV", value=0.0, step=0.5)
-    with row1_col3:
+
+    with col3:
         pv_min = st.number_input("最低page_view", value=0.0, step=10.0)
-    with row1_col4:
-        # We'll hold the button for applying these filters
+
+    with col4:
         apply_multi_btn = st.button("Apply 複数条件フィルタ")
 
-    # Row 2:
-    #   - (colA) Rewrite Priority Score button
-    #   - (colB) 伸びしろ(growth_rate)
-    #   - (colC) CVR × Avg.Position
-    #   - (colD) imp × sales
-    row2_colA, row2_colB, row2_colC, row2_colD = st.columns([2, 2, 2, 2])
+    # 2行目 (colA-colD)
+    colA, colB, colC, colD = st.columns([2.5, 2, 2, 2.5])
 
-    with row2_colA:
+    with colA:
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
-    with row2_colB:
+    with colB:
         growth_btn = st.button("伸びしろ( growth_rate )")
-    with row2_colC:
+    with colC:
         cvr_btn = st.button("CVR × Avg. Position")
-    with row2_colD:
+    with colD:
         imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
 
-    # ---------- Actually apply the filters & button logic now -------------
-    # 1) Filter for sales > 0 or cv > 0 if checkbox is set
+    # -----------------------------
+    # ここからフィルタのロジックを適用
+    # -----------------------------
+
+    # sales>0 or cv>0 チェックボックス
     if filter_sales_cv:
-        # Convert columns to numeric if they exist
+        # カラムが存在すれば数値化
         if "sales" in df.columns:
             df["sales"] = pd.to_numeric(df["sales"], errors="coerce").fillna(0)
         if "cv" in df.columns:
             df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
-        # Filter only if both columns exist
+        # 両方があればフィルタ実行
         if "sales" in df.columns and "cv" in df.columns:
             df = df[(df["sales"] > 0) | (df["cv"] > 0)]
         else:
-            st.warning("sales or cv 列が見つからないため、フィルタを適用できません。")
+            st.warning("sales や cv 列がありません。フィルタを適用できません。")
 
-    # 2) If the "Apply 複数条件フィルタ" button was clicked
+    # 複数条件フィルタボタンを押したら
     if apply_multi_btn:
-        # Convert to numeric safely
         if "cv" in df.columns:
             df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
         if "page_view" in df.columns:
             df["page_view"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
 
-        # Check and apply
         if "cv" in df.columns and "page_view" in df.columns:
             df = df[(df["cv"] >= cv_min) & (df["page_view"] >= pv_min)]
         else:
-            st.warning("cv or page_view 列が見つからないため、フィルタを適用できません。")
+            st.warning("cv または page_view 列が見つかりません。")
 
-    # 3) Rewrite Priority Score if button pressed
+    # Rewrite Priority スコアを算出し、降順ソート
     if rewrite_priority_btn:
+        # まず関連列を数値化しておく
+        # （万が一、文字列が混ざっている場合を想定）
+        for colname in ["sales", "cv", "page_view", "avg_position"]:
+            if colname in df.columns:
+                df[colname] = pd.to_numeric(df[colname], errors="coerce").fillna(0)
+
+        # 重み付け
         w_sales = 1.0
         w_cv = 1.0
         w_pv = 0.5
@@ -174,41 +169,43 @@ def show_sheet1():
 
         def calc_rewrite_priority(row):
             """
-            Combine multiple factors (sales, cv, page_view, avg_position)
-            into a single numeric priority score. 
-            Higher => higher rewrite priority.
+            sales, cv, page_view, avg_position を組み合わせて
+            リライト優先度スコアを返す。
             """
-            # Safely parse columns
-            s = float(row.get("sales", 0) or 0)
-            c = float(row.get("cv", 0) or 0)
-            pv = float(row.get("page_view", 0) or 0)
-            pos = float(row.get("avg_position", 9999) or 9999)
+            s = float(row.get("sales", 0))
+            c = float(row.get("cv", 0))
+            pv = float(row.get("page_view", 0))
+            pos = float(row.get("avg_position", 9999))
 
-            # Example formula using ln to soften big values
+            # 負の値は想定外なので 0 にクリップしておく
+            if s < 0: 
+                s = 0
+            if pv < 0: 
+                pv = 0
+            # log(...) のエラー防止
             s_term = np.log(s + 1) * w_sales
             c_term = c * w_cv
             pv_term = np.log(pv + 1) * w_pv
-            pos_term = -pos * w_pos  # smaller pos => better => negative factor
+            # posは小さいほど好ましい => マイナスをかける
+            pos_term = -pos * w_pos
             return s_term + c_term + pv_term + pos_term
 
-        # Add new column and sort descending
         df["rewrite_priority"] = df.apply(calc_rewrite_priority, axis=1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
-    # 4) Placeholder button logic for the others
+    # 残りのボタンはダミー実装
     if growth_btn:
-        st.info("今後: growth_rate で上昇/下降を判定するロジックを追加予定")
+        st.info("今後: growth_rate を使って上昇/下降を判定するロジックを追加予定")
 
     if cvr_btn:
-        st.info("CVR が高い＆avg_position が3~10位の記事を抽出する機能を今後実装")
+        st.info("CVR×avg_position が良好な記事を抽出する機能を今後実装予定")
 
     if imp_sales_btn:
-        st.info("今後、imp×sales でポテンシャルを評価する指標を導入予定")
+        st.info("imp×sales などでポテンシャル分析をする指標を今後追加予定")
 
-    # Show the CSV viewer heading
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # Make URL column clickable & right-aligned if present
+    # URL列があればクリック可能に & 右寄せ
     if "URL" in df.columns:
         def make_clickable(url):
             url = str(url)
@@ -218,7 +215,7 @@ def show_sheet1():
                 return f'<div style="text-align:right;">{url}</div>'
         df["URL"] = df["URL"].apply(make_clickable)
 
-    # Convert the DataFrame to HTML for display
+    # DataFrame を HTML テーブルとして表示
     html_table = df.to_html(
         escape=False,
         index=False,
@@ -357,11 +354,12 @@ ORDER BY m.page_view DESC;
 以上がクエリ全体のREADMEです。実行時には日付指定部分が自動計算されるため、**“直近7日間のデータを集計して取得”** という形になります。必要に応じて日付範囲を変更したい場合は、`DS_START_DATE` と `DS_END_DATE` の計算ロジックを修正してください。\n"""
 
 def show_sheet2():
+    """README用タブ"""
     st.title("README:")
     st.markdown(README_TEXT)
 
 def streamlit_main():
-    # タブ2枚
+    """タブを2つ用意して表示。"""
     tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
     with tab1:
         show_sheet1()
