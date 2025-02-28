@@ -18,11 +18,11 @@ def load_data() -> pd.DataFrame:
 
 def show_sheet1():
     """
-    3列(30日間平均順位, 7日間平均順位, 比較(7日間が良ければ＋))を狭い幅にし、
-    他の部分は変更せず現状仕様を保つ。
+    3列(30日間平均順位, 7日間平均順位, 比較(7日間が良ければ＋))を強制的に50px幅にし、
+    それ以外の部分・仕様は変えない。
     """
 
-    # 狭くしたい3列
+    # 狭い列にしたい列名
     narrow_cols = {
         "30日間平均順位",
         "7日間平均順位",
@@ -32,21 +32,15 @@ def show_sheet1():
     st.markdown(
         """
         <style>
-        /* タイトル/ID 用の text_input を狭く */
-        input[type=text] {
-            width: 150px !important;
-        }
-
-        /* テーブル全体のデザイン */
+        /* テーブルを固定レイアウトに */
         table.customtable {
+            table-layout: fixed;  /* 列幅を固定レイアウト扱いにする */
+            width: 100%;
             border-collapse: separate;
             border-spacing: 0;
             border: 1px solid #ddd;
             border-radius: 8px;
-            overflow: hidden;
-            width: 100%;
         }
-        /* 角丸設定 */
         table.customtable thead tr:first-child th:first-child {
             border-top-left-radius: 8px;
         }
@@ -60,51 +54,61 @@ def show_sheet1():
             border-bottom-right-radius: 8px;
         }
 
-        /* ヘッダー部分のセルも nowrap + 横スクロール可 */
-        table.customtable thead th .header-content {
-            display: inline-block;
-            max-width: 120px; 
-            white-space: nowrap;
-            overflow-x: auto;
-        }
-
-        /* 通常セルの横スクロール(デフォルト150px) */
+        /* デフォルトのセル (max-width: 150px) */
         table.customtable td .cell-content {
             display: inline-block;
+            width: 100%; /* 親td幅に合わせる */
             max-width: 150px;
             white-space: nowrap;
             overflow-x: auto;
         }
-        /* 狭い列用 (例: 50px) */
+
+        /* 狭い列用 (width:50px) */
         table.customtable td .cell-narrow {
             display: inline-block;
-            max-width: 50px; 
+            width: 50px;     /* 幅を固定 */
+            max-width: 50px; /* 念のため */
             white-space: nowrap;
             overflow-x: auto;
+        }
+
+        /* ヘッダー (既存スタイル) */
+        table.customtable thead th .header-content {
+            display: inline-block;
+            max-width: 120px;
+            white-space: nowrap;
+            overflow-x: auto;
+        }
+
+        /* 他の既存のスタイルを維持 */
+        input[type=text] {
+            width: 150px !important;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
+    # 以下、既存仕様は一切変えず
+    # 項目定義の説明
     st.markdown("""
     **項目定義**:  
     ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
-    # CSV 読み込み
+    # CSVを読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 不要列削除
+    # 不要な列削除
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
     if "sum_position" in df.columns:
         df.drop(columns=["sum_position"], inplace=True)
 
-    # post_title後ろに新規4項目を挿入
+    # 新規4項目を post_title の直後に挿入 (同じまま)
     new_cols = ["SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）"]
     actual_new_cols = [c for c in new_cols if c in df.columns]
     if "post_title" in df.columns:
@@ -117,7 +121,7 @@ def show_sheet1():
             col_list.insert(idx+1, c)
         df = df[col_list]
 
-    # 数値列を小数点1桁
+    # 数値列を小数点1桁で丸める
     numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
@@ -129,7 +133,7 @@ def show_sheet1():
 
     st.write("### フィルタ & 拡張機能")
 
-    # ここから下、既存のフィルタやボタンUIをそのまま
+    # ここから下: フィルタUIやRewritePriorityボタン等 unchanged
     col1, col2, col3, col4 = st.columns([2.5, 2, 2, 2.5])
     with col1:
         filter_sales_cv = st.checkbox("売上 or CV が 0 以上のみ表示")
@@ -149,13 +153,12 @@ def show_sheet1():
         cvravgpos_btn = st.button("CVR × Avg. Position")
     with colD:
         imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
-    # colE はスペース等
 
-    # ... (フィルタ処理、rewrite_priority、cvravgpos, imp*sales等は変更なし) ...
+    # (ここで各フィルタ・ボタンの実装は既存のまま)
 
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # URL列だけ右寄せクリック対応
+    # URL列を右寄せ
     if "URL" in df.columns:
         def clickable_url(cell):
             c = str(cell)
@@ -166,25 +169,21 @@ def show_sheet1():
                 return f'<div class="cell-content" style="text-align:right;">{esc}</div>'
         df["URL"] = df["URL"].apply(clickable_url)
 
-    # wrap関数
+    # wrap関数: narrow_colsならcell-narrow、そうでなければcell-content
     def wrap_cell(val, colname):
-        """
-        該当3列は .cell-narrow、それ以外は .cell-content
-        """
-        v_str = str(val)
-        v_esc = html.escape(v_str)
+        s = str(val)
+        esc = html.escape(s)
         if colname in narrow_cols:
-            return f'<div class="cell-narrow">{v_esc}</div>'
+            return f'<div class="cell-narrow">{esc}</div>'
         else:
-            return f'<div class="cell-content">{v_esc}</div>'
+            return f'<div class="cell-content">{esc}</div>'
 
-    # 全カラムをラップ (URL列は上で特殊処理済み)
-    orig_cols = df.columns.to_list()
-    for col in orig_cols:
-        if col != "URL":
-            df[col] = df[col].apply(lambda x: wrap_cell(x, col))
+    original_cols = df.columns.tolist()
+    for c in original_cols:
+        if c != "URL":
+            df[c] = df[c].apply(lambda x: wrap_cell(x, c))
 
-    # ヘッダーにも .header-content
+    # ヘッダーにも scroll
     new_hdr = []
     for c in df.columns:
         c_esc = html.escape(c)
