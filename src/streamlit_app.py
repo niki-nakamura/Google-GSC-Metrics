@@ -70,7 +70,7 @@ def show_sheet1():
         /* 本文セルの中身を横スクロール許可 */
         table.customtable td .cell-content {
             display: inline-block;
-            max-width: 150px;
+            max-width: 80px;
             white-space: nowrap;
             overflow-x: auto;
         }
