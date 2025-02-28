@@ -294,88 +294,57 @@ def show_sheet1():
 # (Hidden) README doc
 ###################################
 
-def some_function():
-    """
-
-# README: 直近7日間の「column」記事データ集計クエリ
+README_TEXT = """\
+# 直近7日間の「column」記事データ集計クエリ
 
 ## 概要
-
 - **目的**  
-  - WordPress 投稿のうち`CONTENT_TYPE = 'column'` である記事を対象に、**直近7日間**の各種指標（セッション数、PV数、クリックなど）を BigQuery 上で集計する。  
-  - 併せて、WordPress DB から記事の「カテゴリー情報」「SEO対策KW」などを取得・紐づけし、最終的に1つのテーブルとして出力する。
+  - WordPress 投稿のうち `CONTENT_TYPE = 'column'` である記事を対象に、**直近7日間**の各種指標（セッション数、PV数、クリックなど）をBigQueryで集計。
+  - WordPress DBから記事の「カテゴリー情報」「SEO対策KW」などを取得・紐づけし、1つのテーブルとして出力。
 
 - **出力結果**  
-  - 直近7日間の平均値を主とする複数指標（`session`, `page_view`, `click_app_store`, `imp`, `click`, `sales`, `cv` など）に加え、**30日間平均順位**や**7日間平均順位**といった検索順位情報を同テーブルに付与。  
-  - さらに「比較（7日間が良ければ＋）」によって、**7日間順位**が30日間順位より上がっていれば+値（改善）、下がっていれば-値（悪化）を示す。  
-  - データは CSV として出力され、Streamlit アプリ上でフィルタやソートが行えるように構築済み。
+  - 直近7日間の平均を主とする複数指標（session, page_view, sales, cv等）や、30日間平均順位と7日間平均順位などの検索順位情報を付与。
+  - 「比較（7日間が良ければ＋）」で順位改善/悪化を確認。
+  - データはCSV出力され、Streamlitアプリでフィルタ・ソート可能。
 
 ## テーブル構成・主なカラム
+| カラム名                       | 役割・意味                                      |
+|-------------------------------|-------------------------------------------------|
+| POST_ID                       | WordPressの投稿ID                               |
+| URL                           | 記事URL (`https://.../column/POST_ID`)         |
+| category                      | カテゴリー名(カンマ区切り)                      |
+| post_title                    | 記事タイトル                                   |
+| SEO対策KW                     | 主となるSEOキーワード                           |
+| 30日間平均順位               | 過去30日間の平均検索順位                        |
+| 7日間平均順位                | 過去7日間の平均検索順位                         |
+| 比較（7日間が良ければ＋）     | (7日間平均順位 - 30日間平均順位) 正の値で改善   |
+| session                       | 7日間平均セッション数                          |
+| page_view                     | 7日間平均ページビュー                           |
+| sales                         | 7日平均売上 (アフィリエイトなど)               |
+| cv                            | 7日平均コンバージョン                           |
+| click                         | 検索クリック数(7日平均)                         |
+| imp                           | 検索インプレッション(7日平均)                  |
+| avg_position                  | 検索順位(7日平均)                              |
+| growth_rate                   | 伸びしろ(ダミー計算)                            |
+| rewrite_priority              | リライト優先度スコア                            |
+| cvravgpos_score               | CVR×Avg.Positionスコア                          |
+| imp_revenue_score             | 需要(imp)×収益(sales or cv)                    |
 
-| カラム名                        | 役割・意味                                                             |
-|--------------------------------|------------------------------------------------------------------------|
-| **POST_ID**                    | WordPress の投稿ID。                                                   |
-| **URL**                        | 記事のURL。<br>`https://good-apps.jp/media/column/ + post_id`           |
-| **category**                   | 記事カテゴリーのカンマ区切りリスト。                                   |
-| **post_title**                 | 記事タイトル。                                                         |
-| **SEO対策KW**                  | 主となるSEOキーワード。                                                |
-| **30日間平均順位**             | 過去30日間の平均検索順位（例: BigQuery上のSERP情報を集計）。           |
-| **7日間平均順位**              | 過去7日間の平均検索順位。                                              |
-| **比較（7日間が良ければ＋）**  | 7日間順位 - 30日間順位。正の値なら直近で順位が改善、負の値なら悪化。    |
-| **session**                    | 7日間平均のセッション数（流入）。                                      |
-| **page_view**                  | 7日間平均のページビュー数。                                            |
-| **click_app_store**            | アプリストアへのクリック数（例: iOS/Androidなどへ誘導）。               |
-| **imp**                        | 検索インプレッション数。                                               |
-| **click**                      | 検索クリック数。                                                       |
-| **avg_position**               | 平均検索順位（直近7日）。                                              |
-| **sales**                      | 売上（アフィリエイト等の想定、直近7日平均）。                           |
-| **cv**                         | コンバージョン数（7日平均）。                                          |
-| **growth_rate** (Streamlit計算)| ダミー例: `((page_view+1)/(page_view+5)-1)*100` で**伸びしろ**を仮算出。 |
-| **rewrite_priority** (内部計算)| リライト優先度スコア（sales, cv, page_view, avg_positionの組合せ）。     |
-| **cvravgpos_score** (内部計算) | CVR×Avg.Position 用のスコア。`cv/click` を `(pos+1)` で割って算出。     |
-| **imp_revenue_score** (内部計算) | 需要(imp)×収益(salesまたはcv)。 大きいほど優先度高。                  |
+## Streamlitアプリでの機能
 
-> **補足**:  
-> - **伸びしろ (growth_rate)**、**rewrite_priority**、**cvravgpos_score**、**imp_revenue_score** などはボタン操作で動的に計算する列です。  
-> - 実際の命名や処理内容は社内要件に応じて変わる場合があります。  
-
-## Streamlitアプリ上での機能
-
-1. **売上 or CV > 0 のみ表示**  
-   - チェックボックスで売上ゼロのページを除外。
-
-2. **複数条件フィルタ**  
-   - CV下限値、page_view下限値を設定し、`df[(df['cv'] >= X) & (df['page_view'] >= Y)]` のように絞り込む。
-
-3. **Rewrite Priority Score**  
-   - sales, cv, page_view, avg_position を対数・加重して計算。  
-   - ボタンクリックでスコア列を作成し、降順ソート。  
-   - 「リライトの優先度が高い記事」が上位に来る。
-
-4. **伸びしろ (growth_rate)**  
-   - ダミー式: `((page_view+1)/(page_view+5)-1)*100`  
-   - ボタンクリックで列を生成。記事のPV伸長率などを把握する想定。
-
-5. **CVR×Avg.Position**  
-   - `cv / click` → CVR  
-   - スコア = `CVR / (avg_position+1)`  
-   - 降順ソートし、**CVRが高くかつ順位(数値が小さい)が上位のページ**を上に表示。
-
-6. **需要(imp) × 収益(sales or cv)**  
-   - `imp` が検索需要、`sales`(>0) があればそちらを優先、なければ `cv`  
-   - スコア = `imp * revenue`  
-   - 降順ソートで**需要が高く売上/コンバージョンも大きい**ページを抽出。
-
-7. **セル横スクロール**  
-   - セルが狭い場合に文字列が見切れないよう、マウスホイールやドラッグで横スクロール。  
+1. **売上 or CV > 0** のみ表示  
+2. **複数条件フィルタ** (CV ≥ X & page_view ≥ Y)  
+3. **Rewrite Priority Score** (sales,cv,page_view,avg_positionで優先度算出)  
+4. **伸びしろ(growth_rate)** (ダミー式)  
+5. **CVR × Avg.Position** (cv/clickをavg_positionと組み合わせてスコア化)  
+6. **需要(imp) × 収益(sales or cv)** (impとsales/cvを掛け算)  
+7. セル横スクロール・URL右寄せなどUX改善
 
 ## データ取得範囲
 ```sql
 DECLARE DS_START_DATE STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY));
 DECLARE DS_END_DATE   STRING DEFAULT FORMAT_DATE('%Y%m%d', CURRENT_DATE());
 
-    """
-    pass
 
 def show_sheet2():
     """README用タブ"""
