@@ -81,7 +81,7 @@ def show_sheet1():
 
     st.markdown("""
     **項目定義**:  
-    ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
+    直近7日間の各種指標をBigQueryで集計。
     """)
 
     # CSVを読み込む
