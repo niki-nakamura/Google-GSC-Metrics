@@ -19,16 +19,16 @@ def load_data() -> pd.DataFrame:
 def show_sheet1():
     """
     3列(30日間平均順位, 7日間平均順位, 比較(7日間が良ければ＋))を狭い幅にし、
-    それ以外は変更せず現状仕様を保つ。
+    他の部分は変更せず現状仕様を保つ。
     """
-    # 狭い列の候補を定義
+
+    # 狭くしたい3列
     narrow_cols = {
         "30日間平均順位",
         "7日間平均順位",
         "比較（7日間が良ければ＋）"
     }
 
-    # ここまでのCSSは現状通りだが、.cell-narrow を追加
     st.markdown(
         """
         <style>
@@ -60,25 +60,25 @@ def show_sheet1():
             border-bottom-right-radius: 8px;
         }
 
-        /* ヘッダー部分のセルも nowrap + 横スクロール可能に */
+        /* ヘッダー部分のセルも nowrap + 横スクロール可 */
         table.customtable thead th .header-content {
             display: inline-block;
-            max-width: 120px; /* 列幅固定の目安 */
+            max-width: 120px; 
             white-space: nowrap;
             overflow-x: auto;
         }
 
-        /* 本文セルの中身を横スクロール許可(デフォルト150px) */
+        /* 通常セルの横スクロール(デフォルト150px) */
         table.customtable td .cell-content {
             display: inline-block;
             max-width: 150px;
             white-space: nowrap;
             overflow-x: auto;
         }
-        /* 狭い列用のセル (例: 80px) */
+        /* 狭い列用 (例: 50px) */
         table.customtable td .cell-narrow {
             display: inline-block;
-            max-width: 50px;
+            max-width: 50px; 
             white-space: nowrap;
             overflow-x: auto;
         }
@@ -92,19 +92,19 @@ def show_sheet1():
     ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
-    # CSVを読み込む
+    # CSV 読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 不要な列削除 (ONTENT_TYPE, sum_position)
+    # 不要列削除
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
     if "sum_position" in df.columns:
         df.drop(columns=["sum_position"], inplace=True)
 
-    # 新規4項目を post_title の後ろに挿入
+    # post_title後ろに新規4項目を挿入
     new_cols = ["SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）"]
     actual_new_cols = [c for c in new_cols if c in df.columns]
     if "post_title" in df.columns:
@@ -117,17 +117,19 @@ def show_sheet1():
             col_list.insert(idx+1, c)
         df = df[col_list]
 
-    # 数値列を小数点1桁で丸める
+    # 数値列を小数点1桁
     numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
-    # page_view合計(小数点第1位)
+    # page_view合計
     if "page_view" in df.columns:
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{round(total_pv, 1)}")
 
-    # (以下、既存のフィルタUIやRewrite Priority等のロジックをそのまま)
+    st.write("### フィルタ & 拡張機能")
+
+    # ここから下、既存のフィルタやボタンUIをそのまま
     col1, col2, col3, col4 = st.columns([2.5, 2, 2, 2.5])
     with col1:
         filter_sales_cv = st.checkbox("売上 or CV が 0 以上のみ表示")
@@ -147,12 +149,13 @@ def show_sheet1():
         cvravgpos_btn = st.button("CVR × Avg. Position")
     with colD:
         imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
+    # colE はスペース等
 
-    # (filter処理, rewrite_priority, cvravgpos, imp*sales などの実装をそのまま)
+    # ... (フィルタ処理、rewrite_priority、cvravgpos, imp*sales等は変更なし) ...
 
     st.write("### query_貼付 シート CSV のビューワー")
 
-    # URL列だけ特別扱い(右寄せリンク)
+    # URL列だけ右寄せクリック対応
     if "URL" in df.columns:
         def clickable_url(cell):
             c = str(cell)
@@ -163,62 +166,34 @@ def show_sheet1():
                 return f'<div class="cell-content" style="text-align:right;">{esc}</div>'
         df["URL"] = df["URL"].apply(clickable_url)
 
-    # 特定の3列は狭い列にする
-    def wrap_cell(value, colname):
-        val_str = str(value)
-        esc = html.escape(val_str)
+    # wrap関数
+    def wrap_cell(val, colname):
+        """
+        該当3列は .cell-narrow、それ以外は .cell-content
+        """
+        v_str = str(val)
+        v_esc = html.escape(v_str)
         if colname in narrow_cols:
-            # 狭い列
-            return f'<div class="cell-narrow">{esc}</div>'
+            return f'<div class="cell-narrow">{v_esc}</div>'
         else:
-            # デフォルト
-            return f'<div class="cell-content">{esc}</div>'
+            return f'<div class="cell-content">{v_esc}</div>'
 
-    # ラップ処理
-    original_cols = df.columns.to_list()  # 現在の col: post_title, session, etc
-    for col in original_cols:
+    # 全カラムをラップ (URL列は上で特殊処理済み)
+    orig_cols = df.columns.to_list()
+    for col in orig_cols:
         if col != "URL":
             df[col] = df[col].apply(lambda x: wrap_cell(x, col))
 
-    # ヘッダーにもscroll
-    new_headers = []
+    # ヘッダーにも .header-content
+    new_hdr = []
     for c in df.columns:
-        esc = html.escape(c)
-        new_headers.append(f'<div class="header-content">{esc}</div>')
-    df.columns = new_headers
+        c_esc = html.escape(c)
+        new_hdr.append(f'<div class="header-content">{c_esc}</div>')
+    df.columns = new_hdr
 
     # HTML出力
     html_table = df.to_html(escape=False, index=False, classes=["customtable"])
     st.write(html_table, unsafe_allow_html=True)
-
-###################################
-# (Hidden) README doc
-###################################
-
-README_TEXT = """
-(省略)
-"""
-
-def show_sheet2():
-    """README用タブ"""
-    st.title("README:")
-    st.markdown(README_TEXT)
-
-def streamlit_main():
-    """
-    2つのタブ:
-    1) Data Viewer
-    2) README
-    """
-    tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
-    with tab1:
-        show_sheet1()
-    with tab2:
-        show_sheet2()
-
-if __name__ == "__main__":
-    streamlit_main()
-
 
 ###################################
 # (Hidden) README doc
