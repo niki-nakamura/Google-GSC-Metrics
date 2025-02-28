@@ -78,7 +78,7 @@ def show_sheet1():
         /* 狭い列用のセル (例: 80px) */
         table.customtable td .cell-narrow {
             display: inline-block;
-            max-width: 80px;
+            max-width: 50px;
             white-space: nowrap;
             overflow-x: auto;
         }
