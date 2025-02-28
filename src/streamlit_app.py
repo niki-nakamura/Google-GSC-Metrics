@@ -3,17 +3,17 @@ import pandas as pd
 import numpy as np
 from data_fetcher import main_fetch_all
 
-# ページ全体を横幅いっぱいに使う
+# ページ全体を横幅を広めに使う設定
 st.set_page_config(layout="wide")
 
 ###################################
-# シート表示関数
+# CSVデータを読み込み、表示する関数
 ###################################
 
 def load_data() -> pd.DataFrame:
     """
-    CSVファイル(sheet_query_data.csv)を読み込み、
-    失敗した場合は空のDataFrameを返す。
+    sheet_query_data.csv を読み込んで DataFrame を返す。
+    読み込みに失敗したら空の DataFrame を返す。
     """
     try:
         return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
@@ -22,17 +22,22 @@ def load_data() -> pd.DataFrame:
 
 def show_sheet1():
     """
-    CSVを読み込み、フィルタ機能やRewrite Priority Scoreを含むUIを表示。
-    横並びで要素を配置し、事前にカラムを数値型へ変換してエラーを防止する。
+    CSVを読み込んで表示。フィルタやRewrite Priority Score機能を横に並べて設置し、
+    sum_position 列を非表示にし、
+    page_view の合計は小数点第一位までで表示する。
+    また、伸びしろ(growth_rate) の簡易ロジックを加えて列を表示する。
     """
 
-    # HTMLテーブルの角丸・幅調整などのCSS
+    # CSS でテーブルや入力欄を調整
     st.markdown(
         """
         <style>
+        /* タイトル / ID 用の text_input を狭く */
         input[type=text] {
-            width: 150px !important; /* タイトル・ID検索を狭く */
+            width: 150px !important;
         }
+
+        /* HTMLテーブルの角丸や枠線設定 */
         table.customtable {
             border-collapse: separate;
             border-spacing: 0;
@@ -68,50 +73,51 @@ def show_sheet1():
     # 主な項目の簡単な説明
     st.markdown("""
     **項目定義**:  
-    ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
+    ID=一意ID, title=記事名, category=分類, CV=コンバージョン,  
+    page_view=PV数, URL=リンク先 等
     """)
 
-    # CSV読み込み
+    # CSV を読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 不要な列を削除（存在すれば）
+    # 不要な列があれば削除
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
+
+    # sum_position 列を非表示にする
+    if "sum_position" in df.columns:
+        df.drop(columns=["sum_position"], inplace=True)
 
     # 数値列を小数点以下1桁に丸める
     numeric_cols = df.select_dtypes(include=["float", "int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
-    # page_view合計を表示
+    # page_view の合計を表示 (小数点第一位まで)
     if "page_view" in df.columns:
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
         total_pv = df["page_view_numeric"].sum()
-        st.metric("page_view の合計", f"{total_pv}")
+        # round() で小数点第一位まで
+        total_pv_rounded = round(total_pv, 1)
+        st.metric("page_view の合計", f"{total_pv_rounded}")
 
     st.write("### フィルタ & 拡張機能")
 
-    # -----------------------------
-    # 1行目 (col1-col4) 
-    # 横に並べたチェックボックス・数値入力・ボタン
-    # -----------------------------
+    # 1行目: (col1-col4)
     col1, col2, col3, col4 = st.columns([2.5, 2, 2, 2.5])
 
     with col1:
         filter_sales_cv = st.checkbox("売上 or CV が 0 以上のみ表示")
-
     with col2:
         cv_min = st.number_input("最低CV", value=0.0, step=0.5)
-
     with col3:
         pv_min = st.number_input("最低page_view", value=0.0, step=10.0)
-
     with col4:
         apply_multi_btn = st.button("Apply 複数条件フィルタ")
 
-    # 2行目 (colA-colD)
+    # 2行目: (colA-colD)
     colA, colB, colC, colD = st.columns([2.5, 2, 2, 2.5])
 
     with colA:
@@ -123,84 +129,73 @@ def show_sheet1():
     with colD:
         imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
 
-    # -----------------------------
-    # ここからフィルタのロジックを適用
-    # -----------------------------
-
-    # sales>0 or cv>0 チェックボックス
+    # ------------------ フィルタ処理 ------------------
     if filter_sales_cv:
-        # カラムが存在すれば数値化
+        # sales, cv を数値に変換
         if "sales" in df.columns:
             df["sales"] = pd.to_numeric(df["sales"], errors="coerce").fillna(0)
         if "cv" in df.columns:
             df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
-        # 両方があればフィルタ実行
         if "sales" in df.columns and "cv" in df.columns:
             df = df[(df["sales"] > 0) | (df["cv"] > 0)]
         else:
-            st.warning("sales や cv 列がありません。フィルタを適用できません。")
+            st.warning("sales や cv 列が見つからないため、フィルタを適用できません。")
 
-    # 複数条件フィルタボタンを押したら
     if apply_multi_btn:
+        # cv, page_view を数値に変換
         if "cv" in df.columns:
             df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
         if "page_view" in df.columns:
             df["page_view"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
-
         if "cv" in df.columns and "page_view" in df.columns:
             df = df[(df["cv"] >= cv_min) & (df["page_view"] >= pv_min)]
         else:
             st.warning("cv または page_view 列が見つかりません。")
 
-    # Rewrite Priority スコアを算出し、降順ソート
+    # Rewrite Priority スコア計算 & 降順ソート
     if rewrite_priority_btn:
-        # まず関連列を数値化しておく
-        # （万が一、文字列が混ざっている場合を想定）
+        # sales, cv, page_view, avg_position を数値化
         for colname in ["sales", "cv", "page_view", "avg_position"]:
             if colname in df.columns:
                 df[colname] = pd.to_numeric(df[colname], errors="coerce").fillna(0)
 
-        # 重み付け
         w_sales = 1.0
         w_cv = 1.0
         w_pv = 0.5
         w_pos = 0.2
 
         def calc_rewrite_priority(row):
-            """
-            sales, cv, page_view, avg_position を組み合わせて
-            リライト優先度スコアを返す。
-            """
             s = float(row.get("sales", 0))
             c = float(row.get("cv", 0))
             pv = float(row.get("page_view", 0))
             pos = float(row.get("avg_position", 9999))
-
-            # 負の値は想定外なので 0 にクリップしておく
-            if s < 0: 
-                s = 0
-            if pv < 0: 
-                pv = 0
-            # log(...) のエラー防止
+            if s < 0: s = 0
+            if pv < 0: pv = 0
             s_term = np.log(s + 1) * w_sales
             c_term = c * w_cv
             pv_term = np.log(pv + 1) * w_pv
-            # posは小さいほど好ましい => マイナスをかける
             pos_term = -pos * w_pos
             return s_term + c_term + pv_term + pos_term
 
         df["rewrite_priority"] = df.apply(calc_rewrite_priority, axis=1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
-    # 残りのボタンはダミー実装
+    # 伸びしろ(growth_rate) の機能
     if growth_btn:
-        st.info("今後: growth_rate を使って上昇/下降を判定するロジックを追加予定")
+        # 例: page_view を元に、適当な成長率を計算してみる（ダミー）
+        if "page_view" in df.columns:
+            df["page_view"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
+            # 伸び率計算(ダミー例): growth_rate = ((page_view+1)/(page_view+5) -1)*100
+            df["growth_rate"] = ((df["page_view"] + 1) / (df["page_view"] + 5) - 1) * 100
+            df["growth_rate"] = df["growth_rate"].round(1)
+        else:
+            st.warning("page_view 列が無いので growth_rate を計算できません。")
 
     if cvr_btn:
-        st.info("CVR×avg_position が良好な記事を抽出する機能を今後実装予定")
+        st.info("CVR×avg_position の抽出ロジックを今後実装予定。")
 
     if imp_sales_btn:
-        st.info("imp×sales などでポテンシャル分析をする指標を今後追加予定")
+        st.info("imp×sales などでポテンシャルを評価する指標を今後追加予定。")
 
     st.write("### query_貼付 シート CSV のビューワー")
 
@@ -214,14 +209,13 @@ def show_sheet1():
                 return f'<div style="text-align:right;">{url}</div>'
         df["URL"] = df["URL"].apply(make_clickable)
 
-    # DataFrame を HTML テーブルとして表示
+    # DataFrame を HTML テーブルとして描画
     html_table = df.to_html(
         escape=False,
         index=False,
         classes=["customtable"]
     )
     st.write(html_table, unsafe_allow_html=True)
-
 
 ###################################
 # (Hidden) README doc
@@ -367,3 +361,5 @@ def streamlit_main():
 
 if __name__ == "__main__":
     streamlit_main()
+
+
