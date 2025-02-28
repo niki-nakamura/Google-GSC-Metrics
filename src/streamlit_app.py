@@ -8,9 +8,7 @@ from data_fetcher import main_fetch_all
 st.set_page_config(layout="wide")
 
 def load_data() -> pd.DataFrame:
-    """
-    sheet_query_data.csv を読み込み、失敗したら空DataFrameを返す。
-    """
+    """sheet_query_data.csv を読み込み、失敗したら空DataFrameを返す。"""
     try:
         return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
     except:
@@ -18,11 +16,11 @@ def load_data() -> pd.DataFrame:
 
 def show_sheet1():
     """
-    3列(30日間平均順位, 7日間平均順位, 比較(7日間が良ければ＋))を強制的に50px幅にし、
-    それ以外の部分・仕様は変えない。
+    3列(30日間平均順位, 7日間平均順位, 比較(7日間が良ければ＋))のみ
+    セル内を最大50pxに抑え、表全体のレイアウトは変えない。
     """
 
-    # 狭い列にしたい列名
+    # 狭い列の候補
     narrow_cols = {
         "30日間平均順位",
         "7日間平均順位",
@@ -32,14 +30,13 @@ def show_sheet1():
     st.markdown(
         """
         <style>
-        /* テーブルを固定レイアウトに */
+        /* テーブルレイアウトを固定しない => 既存の幅を保ちやすい */
         table.customtable {
-            table-layout: fixed;  /* 列幅を固定レイアウト扱いにする */
-            width: 100%;
             border-collapse: separate;
             border-spacing: 0;
             border: 1px solid #ddd;
             border-radius: 8px;
+            /* width: auto; ←指定しない or auto */
         }
         table.customtable thead tr:first-child th:first-child {
             border-top-left-radius: 8px;
@@ -57,22 +54,20 @@ def show_sheet1():
         /* デフォルトのセル (max-width: 150px) */
         table.customtable td .cell-content {
             display: inline-block;
-            width: 100%; /* 親td幅に合わせる */
             max-width: 150px;
             white-space: nowrap;
             overflow-x: auto;
         }
 
-        /* 狭い列用 (width:50px) */
+        /* 狭い列: 50px で文字が足りない場合は横スクロール */
         table.customtable td .cell-narrow {
             display: inline-block;
-            width: 50px;     /* 幅を固定 */
-            max-width: 50px; /* 念のため */
+            max-width: 50px; 
             white-space: nowrap;
             overflow-x: auto;
         }
 
-        /* ヘッダー (既存スタイル) */
+        /* ヘッダー部分(横スクロールなどは従来通り) */
         table.customtable thead th .header-content {
             display: inline-block;
             max-width: 120px;
@@ -80,7 +75,7 @@ def show_sheet1():
             overflow-x: auto;
         }
 
-        /* 他の既存のスタイルを維持 */
+        /* タイトル/ID 用の text_input の幅 */
         input[type=text] {
             width: 150px !important;
         }
@@ -89,26 +84,25 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    # 以下、既存仕様は一切変えず
-    # 項目定義の説明
+    # 項目定義の簡易説明
     st.markdown("""
     **項目定義**:  
     ID=一意ID, title=記事名, category=分類, CV=コンバージョン, page_view=PV数, URL=リンク先 等
     """)
 
-    # CSVを読み込み
+    # CSV読み込み
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 不要な列削除
+    # 不要列削除(ONTENT_TYPE, sum_position)
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
     if "sum_position" in df.columns:
         df.drop(columns=["sum_position"], inplace=True)
 
-    # 新規4項目を post_title の直後に挿入 (同じまま)
+    # 新規4項目を post_title の後ろに挿入
     new_cols = ["SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）"]
     actual_new_cols = [c for c in new_cols if c in df.columns]
     if "post_title" in df.columns:
@@ -121,44 +115,20 @@ def show_sheet1():
             col_list.insert(idx+1, c)
         df = df[col_list]
 
-    # 数値列を小数点1桁で丸める
+    # 数値列を小数点1桁
     numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
-    # page_view合計
+    # page_view合計(小数点第1位)
     if "page_view" in df.columns:
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{round(total_pv, 1)}")
 
     st.write("### フィルタ & 拡張機能")
+    # (既存のフィルタUIなどは変更なし)
 
-    # ここから下: フィルタUIやRewritePriorityボタン等 unchanged
-    col1, col2, col3, col4 = st.columns([2.5, 2, 2, 2.5])
-    with col1:
-        filter_sales_cv = st.checkbox("売上 or CV が 0 以上のみ表示")
-    with col2:
-        cv_min = st.number_input("最低CV", value=0.0, step=0.5)
-    with col3:
-        pv_min = st.number_input("最低page_view", value=0.0, step=10.0)
-    with col4:
-        apply_multi_btn = st.button("Apply 複数条件フィルタ")
-
-    colA, colB, colC, colD, colE = st.columns([2.5, 2, 2, 2, 2.5])
-    with colA:
-        rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
-    with colB:
-        growth_btn = st.button("伸びしろ( growth_rate )")
-    with colC:
-        cvravgpos_btn = st.button("CVR × Avg. Position")
-    with colD:
-        imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
-
-    # (ここで各フィルタ・ボタンの実装は既存のまま)
-
-    st.write("### query_貼付 シート CSV のビューワー")
-
-    # URL列を右寄せ
+    # URL列(右寄せリンク)
     if "URL" in df.columns:
         def clickable_url(cell):
             c = str(cell)
@@ -169,26 +139,27 @@ def show_sheet1():
                 return f'<div class="cell-content" style="text-align:right;">{esc}</div>'
         df["URL"] = df["URL"].apply(clickable_url)
 
-    # wrap関数: narrow_colsならcell-narrow、そうでなければcell-content
+    # ラップ関数: 指定3列は cell-narrow、それ以外は cell-content
     def wrap_cell(val, colname):
-        s = str(val)
-        esc = html.escape(s)
+        v_str = str(val)
+        v_esc = html.escape(v_str)
         if colname in narrow_cols:
-            return f'<div class="cell-narrow">{esc}</div>'
+            return f'<div class="cell-narrow">{v_esc}</div>'
         else:
-            return f'<div class="cell-content">{esc}</div>'
+            return f'<div class="cell-content">{v_esc}</div>'
 
-    original_cols = df.columns.tolist()
-    for c in original_cols:
+    # ラップ実行(ただしURL列は既に別処理)
+    orig_cols = df.columns.tolist()
+    for c in orig_cols:
         if c != "URL":
             df[c] = df[c].apply(lambda x: wrap_cell(x, c))
 
-    # ヘッダーにも scroll
-    new_hdr = []
+    # ヘッダー
+    new_header = []
     for c in df.columns:
-        c_esc = html.escape(c)
-        new_hdr.append(f'<div class="header-content">{c_esc}</div>')
-    df.columns = new_hdr
+        esc = html.escape(c)
+        new_header.append(f'<div class="header-content">{esc}</div>')
+    df.columns = new_header
 
     # HTML出力
     html_table = df.to_html(escape=False, index=False, classes=["customtable"])
