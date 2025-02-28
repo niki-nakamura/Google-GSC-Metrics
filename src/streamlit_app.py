@@ -142,7 +142,30 @@ def show_sheet1():
         cvravgpos_btn = st.button("CVR × Avg. Position")
     with colD:
         imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
-    # colE はスペーサー or 追加余地
+    
+  # 下段の4カラムでボタンを配置している部分を修正する
+
+colA, colB, colC, colD, colE = st.columns([2.5, 2, 2, 2, 2.5])
+
+with colA:
+    rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
+    st.caption("sales, cv, page_view, avg_position を統合したリライト優先度")
+
+with colB:
+    growth_btn = st.button("伸びしろ( growth_rate )")
+    st.caption("直近PVなどから成長率を計算。伸び代が大きい記事を優先")
+
+with colC:
+    cvravgpos_btn = st.button("CVR × Avg. Position")
+    st.caption("CV / click と順位を組み合わせ。もう少し上げれば成果大の候補を抽出")
+
+with colD:
+    imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
+    st.caption("imp×sales or cv。需要が大きく売上/コンバージョンが高い記事を抽出")
+
+# colE は今のところスペーサー/将来用
+  
+  # colE はスペーサー or 追加余地
 
     # ------ フィルタ ------
     if filter_sales_cv:
