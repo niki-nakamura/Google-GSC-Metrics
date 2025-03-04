@@ -23,8 +23,9 @@ def show_sheet1():
     - page_view合計を小数点第一位
     - 新規4項目を post_title の直後に挿入
     - growth_rate を「30日間平均順位」「7日間平均順位」から計算
-    - Rewrite Priority Score ボタンで降順ソート（sales, cv, page_view, imp, growth_rate, avg_positionを統合）
+    - Rewrite Priority Score ボタンで sales=0 を除外し、降順ソート
     """
+
     # -------------------------------
     # 1) CSSや前準備部分（テーブルのカスタムCSS）
     # -------------------------------
@@ -97,11 +98,10 @@ def show_sheet1():
     if "post_title" in df.columns:
         idx = df.columns.get_loc("post_title")
         col_list = list(df.columns)
-        for c in actual_new_cols:
+        for c in reversed(actual_new_cols):
             if c in col_list:
                 col_list.remove(c)
-        for c in reversed(actual_new_cols):
-            col_list.insert(idx+1, c)
+                col_list.insert(idx+1, c)
         df = df[col_list]
 
     # -------------------------------
@@ -126,15 +126,12 @@ def show_sheet1():
         df["7日間平均順位"] = pd.to_numeric(df["7日間平均順位"], errors="coerce").fillna(0)
 
         def calc_growth_rate(row):
-            oldPos = row["30日間平均順位"]  # 30日間の平均順位
-            newPos = row["7日間平均順位"]   # 7日間の平均順位
-            # oldPos > 0 のとき (oldPos - newPos) / oldPos * 100
-            # 順位が改善(新Posが小さい)ならプラス、悪化ならマイナス
+            oldPos = row["30日間平均順位"]
+            newPos = row["7日間平均順位"]
             if oldPos > 0:
                 return ((oldPos - newPos) / oldPos) * 100
             else:
-                return 0  # oldPosが0か負なら計算できないので0とする
-
+                return 0
         df["growth_rate"] = df.apply(calc_growth_rate, axis=1)
         df["growth_rate"] = df["growth_rate"].round(1)
 
@@ -145,45 +142,45 @@ def show_sheet1():
     colA, _ = st.columns([2.5, 7.5])
     with colA:
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
-        st.caption("sales, cv, page_view, imp, growth_rate, avg_position などを統合した優先度")
+        st.caption("売上が0の記事は除外。sales, cv, page_view, imp, growth_rate, avg_position を統合した優先度")
 
-if rewrite_priority_btn:
-    # (1) salesが0の行を除外する
-    df = df[pd.to_numeric(df["sales"], errors="coerce").fillna(0) > 0]
+    # ---- ここでボタンの処理を実行 (関数内に含める) ----
+    if rewrite_priority_btn:
+        # (1) sales が 0 の行を除外
+        df = df[pd.to_numeric(df["sales"], errors="coerce").fillna(0) > 0]
 
-    # (2) 数値化処理
-    for cname in ["sales","cv","page_view","imp","growth_rate","avg_position"]:
-        if cname in df.columns:
-            df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
+        # (2) 数値化処理
+        for cname in ["sales","cv","page_view","imp","growth_rate","avg_position"]:
+            if cname in df.columns:
+                df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
 
-    # (3) 重み付け（必要に応じて調整可能）
-    w_sales = 1.0    # 売上
-    w_cv    = 1.0    # CV
-    w_pv    = 0.5    # page_view
-    w_imp   = 0.5    # imp（インプレッション）
-    w_gr    = 0.3    # growth_rate（順位改善度合い）
-    w_pos   = 0.2    # avg_position（大きいほどマイナス評価）
+        # (3) 重み付け
+        w_sales = 1.0    # 売上
+        w_cv    = 1.0    # CV
+        w_pv    = 0.5    # page_view
+        w_imp   = 0.5    # imp（インプレッション）
+        w_gr    = 0.3    # growth_rate（順位改善度合い）
+        w_pos   = 0.2    # avg_position（大きいほどマイナス評価）
 
-    def calc_rp(row):
-        s   = float(row.get("sales", 0))
-        c   = float(row.get("cv", 0))
-        pv  = float(row.get("page_view", 0))
-        imp = float(row.get("imp", 0))
-        gr  = float(row.get("growth_rate", 0))     
-        pos = float(row.get("avg_position", 9999))
+        def calc_rp(row):
+            s   = float(row.get("sales", 0))
+            c   = float(row.get("cv", 0))
+            pv  = float(row.get("page_view", 0))
+            imp = float(row.get("imp", 0))
+            gr  = float(row.get("growth_rate", 0))     
+            pos = float(row.get("avg_position", 9999))
 
-        # ログ変換等でスケール調整
-        score = (np.log(s+1) * w_sales
-                 + c           * w_cv
-                 + np.log(pv+1)* w_pv
-                 + np.log(imp+1)* w_imp
-                 + gr          * w_gr
-                 - pos         * w_pos)
-        return score
+            score = (np.log(s+1) * w_sales
+                     + c           * w_cv
+                     + np.log(pv+1)* w_pv
+                     + np.log(imp+1)* w_imp
+                     + gr          * w_gr
+                     - pos         * w_pos)
+            return score
 
-    # (4) Rewrite Priority Score 計算・ソート
-    df["rewrite_priority"] = df.apply(calc_rp, axis=1)
-    df.sort_values("rewrite_priority", ascending=False, inplace=True)
+        # (4) Rewrite Priority Score 計算・ソート
+        df["rewrite_priority"] = df.apply(calc_rp, axis=1)
+        df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
     # -------------------------------
     # 7) 表示用: セル横スクロール対応
@@ -193,7 +190,6 @@ if rewrite_priority_btn:
         s_esc = html.escape(s)
         return f'<div class="cell-content">{s_esc}</div>'
 
-    # URL列のみ右寄せ＋クリック対応
     if "URL" in df.columns:
         def clickable_url(cell):
             cell_str = str(cell)
@@ -208,7 +204,6 @@ if rewrite_priority_btn:
         if col != "URL":
             df[col] = df[col].apply(wrap_cell)
 
-    # ヘッダーにも横スクロール用のラッパーを適用
     new_cols = []
     for c in df.columns:
         c_esc = html.escape(c)
@@ -260,20 +255,18 @@ README_TEXT = """\
 | click                         | 検索クリック数(7日平均)                         |
 | imp                           | 検索インプレッション(7日平均)                  |
 | avg_position                  | 検索順位(7日平均)                              |
-| growth_rate                   | 伸びしろ(ダミー計算)                            |
+| growth_rate                   | (30日間平均順位→7日間平均順位)の改善率(%)      |
 | rewrite_priority              | リライト優先度スコア                            |
 | cvravgpos_score               | CVR×Avg.Positionスコア                          |
 | imp_revenue_score             | 需要(imp)×収益(sales or cv)                    |
 
 ## Streamlitアプリでの機能
 
-1. **売上 or CV > 0** のみ表示  
-2. **複数条件フィルタ** (CV ≥ X & page_view ≥ Y)  
-3. **Rewrite Priority Score** (sales,cv,page_view,avg_positionで優先度算出)  
-4. **伸びしろ(growth_rate)** (ダミー式)  
-5. **CVR × Avg.Position** (cv/clickをavg_positionと組み合わせてスコア化)  
-6. **需要(imp) × 収益(sales or cv)** (impとsales/cvを掛け算)  
-7. セル横スクロール・URL右寄せなどUX改善
+1. **Rewrite Priority Score**  
+   - ボタンを押すと売上0記事を除外し、スコア計算して降順ソート
+2. **growth_rate**  
+   - 30日間平均順位と7日間平均順位の差分(%)
+3. **セル横スクロール・URL右寄せなどUX改善**
 
 ## データ取得範囲
 ```sql
@@ -281,14 +274,11 @@ DECLARE DS_START_DATE STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE
 DECLARE DS_END_DATE   STRING DEFAULT FORMAT_DATE('%Y%m%d', CURRENT_DATE());
     """
 
-
 def show_sheet2():
-    """README用タブ"""
     st.title("README:")
     st.markdown(README_TEXT)
 
 def streamlit_main():
-    """タブを2つ用意して表示。"""
     tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
     with tab1:
         show_sheet1()
