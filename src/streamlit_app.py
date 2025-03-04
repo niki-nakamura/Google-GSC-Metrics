@@ -142,7 +142,8 @@ def show_sheet1():
     colA, _ = st.columns([2.5, 7.5])
     with colA:
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
-        st.caption("売上が0の記事は除外。sales, cv, page_view, imp, growth_rate, avg_position を統合した優先度")
+        st.caption("売上（収益）が発生している記事のみが対象となり、
+売上、コンバージョン、トラフィック、伸びしろ、検索順位改善の全ての観点から総合的に評価された記事が上位にくる")
 
     # ---- ここでボタンの処理を実行 (関数内に含める) ----
     if rewrite_priority_btn:
