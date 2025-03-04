@@ -22,9 +22,12 @@ def show_sheet1():
     - sum_position 列を非表示
     - page_view合計を小数点第一位
     - 新規4項目を post_title の直後に挿入
-    - Rewrite Priority Score ボタンで降順ソート（売上, cv, page_view, imp, growth_rate, avg_positionを統合）
+    - growth_rate を page_view から計算して列として出力
+    - Rewrite Priority Score ボタンで降順ソート（sales, cv, page_view, imp, growth_rate, avg_positionを統合）
     """
-    # CSSや前準備部分（テーブルのカスタムCSS）などはそのまま
+    # -------------------------------
+    # 1) CSSや前準備部分（テーブルのカスタムCSS）
+    # -------------------------------
     st.markdown(
         """
         <style>
@@ -74,7 +77,9 @@ def show_sheet1():
     直近7日間の各種指標をBigQueryで集計。
     """)
 
-    # CSVを読み込む
+    # -------------------------------
+    # 2) CSVを読み込む
+    # -------------------------------
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
@@ -99,28 +104,42 @@ def show_sheet1():
             col_list.insert(idx+1, c)
         df = df[col_list]
 
-    # 数値列を小数点1桁で丸める
+    # -------------------------------
+    # 3) 数値列の丸め処理
+    # -------------------------------
     numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
-    # page_view合計(小数点第1位)
+    # -------------------------------
+    # 4) page_view合計(小数点第1位)を表示
+    # -------------------------------
     if "page_view" in df.columns:
         df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
         total_pv = df["page_view_numeric"].sum()
         st.metric("page_view の合計", f"{round(total_pv, 1)}")
 
-    st.write("### フィルタ & 拡張機能")
+    # -------------------------------
+    # 5) growth_rate を page_view から計算
+    # -------------------------------
+    if "page_view" in df.columns:
+        # 計算式は例示：((page_view + 1)/(page_view + 5) - 1)*100
+        # 必要に応じて別の式に差し替えてください
+        df["growth_rate"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
+        df["growth_rate"] = ((df["growth_rate"] + 1) / (df["growth_rate"] + 5) - 1) * 100
+        df["growth_rate"] = df["growth_rate"].round(1)
 
-    # --- Rewrite Priority Score ボタンのみ表示 ---
+    # -------------------------------
+    # 6) Rewrite Priority Score ボタン
+    # -------------------------------
+    st.write("### フィルタ & 拡張機能")
     colA, _ = st.columns([2.5, 7.5])
     with colA:
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
         st.caption("sales, cv, page_view, imp, growth_rate, avg_position などを統合した優先度")
 
-    # ------ フィルタロジック（Rewrite Priorityのみ）------
     if rewrite_priority_btn:
-        # 対象の各列を数値化
-        for cname in ["sales","cv","page_view","avg_position","imp","growth_rate"]:
+        # 対象の各列を数値化（欠損時は0）
+        for cname in ["sales","cv","page_view","imp","growth_rate","avg_position"]:
             if cname in df.columns:
                 df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
 
@@ -130,15 +149,15 @@ def show_sheet1():
         w_pv    = 0.5    # page_view
         w_imp   = 0.5    # imp（インプレッション）
         w_gr    = 0.3    # growth_rate（伸びしろ）
-        w_pos   = 0.2    # avg_position（平均順位；大きいほどマイナス評価）
+        w_pos   = 0.2    # avg_position（大きいほどマイナス評価）
 
         def calc_rp(row):
             s   = float(row.get("sales", 0))
             c   = float(row.get("cv", 0))
             pv  = float(row.get("page_view", 0))
             imp = float(row.get("imp", 0))
-            gr  = float(row.get("growth_rate", 0))     # 大きいほどプラス評価
-            pos = float(row.get("avg_position", 9999)) # 大きいほどマイナス評価
+            gr  = float(row.get("growth_rate", 0))     
+            pos = float(row.get("avg_position", 9999))
 
             # ログ変換等でスケール調整
             score = (np.log(s+1) * w_sales
@@ -152,7 +171,9 @@ def show_sheet1():
         df["rewrite_priority"] = df.apply(calc_rp, axis=1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
-    # 表示用: セル横スクロール対応
+    # -------------------------------
+    # 7) 表示用: セル横スクロール対応
+    # -------------------------------
     def wrap_cell(val):
         s = str(val)
         s_esc = html.escape(s)
@@ -181,7 +202,9 @@ def show_sheet1():
         new_cols.append(f'<div class="header-content">{c_esc}</div>')
     df.columns = new_cols
 
-    # HTMLテーブルに変換して表示
+    # -------------------------------
+    # 8) HTMLテーブルに変換して表示
+    # -------------------------------
     html_table = df.to_html(
         escape=False,
         index=False,
