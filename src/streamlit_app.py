@@ -22,7 +22,7 @@ def show_sheet1():
     - sum_position 列を非表示
     - page_view合計を小数点第一位
     - 新規4項目を post_title の直後に挿入
-    - growth_rate を page_view から計算して列として出力
+    - growth_rate を「30日間平均順位」「7日間平均順位」から計算
     - Rewrite Priority Score ボタンで降順ソート（sales, cv, page_view, imp, growth_rate, avg_positionを統合）
     """
     # -------------------------------
@@ -119,13 +119,23 @@ def show_sheet1():
         st.metric("page_view の合計", f"{round(total_pv, 1)}")
 
     # -------------------------------
-    # 5) growth_rate を page_view から計算
+    # 5) growth_rate を「30日間平均順位」「7日間平均順位」から計算
     # -------------------------------
-    if "page_view" in df.columns:
-        # 計算式は例示：((page_view + 1)/(page_view + 5) - 1)*100
-        # 必要に応じて別の式に差し替えてください
-        df["growth_rate"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
-        df["growth_rate"] = ((df["growth_rate"] + 1) / (df["growth_rate"] + 5) - 1) * 100
+    if "30日間平均順位" in df.columns and "7日間平均順位" in df.columns:
+        df["30日間平均順位"] = pd.to_numeric(df["30日間平均順位"], errors="coerce").fillna(0)
+        df["7日間平均順位"] = pd.to_numeric(df["7日間平均順位"], errors="coerce").fillna(0)
+
+        def calc_growth_rate(row):
+            oldPos = row["30日間平均順位"]  # 30日間の平均順位
+            newPos = row["7日間平均順位"]   # 7日間の平均順位
+            # oldPos > 0 のとき (oldPos - newPos) / oldPos * 100
+            # 順位が改善(新Posが小さい)ならプラス、悪化ならマイナス
+            if oldPos > 0:
+                return ((oldPos - newPos) / oldPos) * 100
+            else:
+                return 0  # oldPosが0か負なら計算できないので0とする
+
+        df["growth_rate"] = df.apply(calc_growth_rate, axis=1)
         df["growth_rate"] = df["growth_rate"].round(1)
 
     # -------------------------------
@@ -148,7 +158,7 @@ def show_sheet1():
         w_cv    = 1.0    # CV
         w_pv    = 0.5    # page_view
         w_imp   = 0.5    # imp（インプレッション）
-        w_gr    = 0.3    # growth_rate（伸びしろ）
+        w_gr    = 0.3    # growth_rate（順位改善度合い）
         w_pos   = 0.2    # avg_position（大きいほどマイナス評価）
 
         def calc_rp(row):
