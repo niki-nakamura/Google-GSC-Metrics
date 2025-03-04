@@ -200,7 +200,6 @@ def show_sheet1():
                 return f'<div class="cell-content" style="text-align:right;">{html.escape(cell_str)}</div>'
         df["URL"] = df["URL"].apply(clickable_url)
 
-    # 他の列は wrap_cell を適用
     for col in df.columns:
         if col != "URL":
             df[col] = df[col].apply(wrap_cell)
