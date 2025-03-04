@@ -25,17 +25,13 @@ def show_sheet1():
     - growth_rate ボタンで計算列を追加
     - CVR×avg_position ボタンで cv / click & その結果を avg_position と組み合わせた指標でソート
     - 需要(imp) × 収益(sales or cv) ボタンで指標計算し、降順ソート
+    - 【改良】Rewrite Priority ボタンの計算式を売上やimp, growth_rateも加味するようアップデート
     """
 
-    # CSS: stickyヘッダを使わずにセル横スクロールを実装中のCSS
+    # CSSや前準備部分は変更なし
     st.markdown(
         """
         <style>
-        /* タイトル/ID 用の text_input を狭く */
-        input[type=text] {
-            width: 150px !important;
-        }
-
         /* テーブル全体のデザイン */
         table.customtable {
             border-collapse: separate;
@@ -58,15 +54,13 @@ def show_sheet1():
         table.customtable tbody tr:last-child td:last-child {
             border-bottom-right-radius: 8px;
         }
-
         /* ヘッダー部分のセルも nowrap + 横スクロール可能に */
         table.customtable thead th .header-content {
             display: inline-block;
-            max-width: 120px;      /* 列幅固定の目安 */
+            max-width: 120px; 
             white-space: nowrap;
             overflow-x: auto;
         }
-
         /* 本文セルの中身を横スクロール許可 */
         table.customtable td .cell-content {
             display: inline-block;
@@ -102,11 +96,9 @@ def show_sheet1():
     if "post_title" in df.columns:
         idx = df.columns.get_loc("post_title")
         col_list = list(df.columns)
-        # 既存のリストから該当列を一度除去
         for c in actual_new_cols:
             if c in col_list:
                 col_list.remove(c)
-        # post_title の直後に新列を挿入
         for c in reversed(actual_new_cols):
             col_list.insert(idx+1, c)
         df = df[col_list]
@@ -140,7 +132,7 @@ def show_sheet1():
     # --- Rewrite Priority
     with colA:
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
-        st.caption("sales, cv, page_view, avg_position を統合したリライト優先度")
+        st.caption("sales, cv, page_view, imp, growth_rate, avg_position などを統合した優先度")
 
     # --- 伸びしろ(growth_rate)
     with colB:
@@ -157,7 +149,7 @@ def show_sheet1():
         imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
         st.caption("imp×sales or cv。需要が大きく売上/コンバージョンが高い記事を抽出")
 
-    # colE は将来用のスペーサー
+    # colE はスペーサー
 
     # ------ フィルタロジック ------
     if filter_sales_cv:
@@ -180,25 +172,38 @@ def show_sheet1():
         else:
             st.warning("cv や page_view 列が無いためフィルタできません。")
 
-    # Rewrite Priority (リライト優先度)
+    # 【改良】Rewrite Priority (リライト優先度) の計算ロジック
     if rewrite_priority_btn:
-        for cname in ["sales","cv","page_view","avg_position"]:
+        # 必要な列を数値化
+        for cname in ["sales","cv","page_view","avg_position","imp","growth_rate"]:
             if cname in df.columns:
                 df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
-        w_sales = 1.0
-        w_cv    = 1.0
-        w_pv    = 0.5
-        w_pos   = 0.2
+
+        # 重み付け(必要に応じて調整)
+        w_sales = 1.0    # 売上をどの程度重視するか
+        w_cv    = 1.0    # CVをどの程度重視するか
+        w_pv    = 0.5    # PVをどの程度重視するか
+        w_imp   = 0.5    # インプレッション(需要)をどの程度重視するか
+        w_gr    = 0.3    # growth_rate(成長度合い)をどの程度加味するか
+        w_pos   = 0.2    # 平均順位(悪いほど優先度が高いようマイナスに)
 
         def calc_rp(row):
-            s = max(0, float(row.get("sales", 0)))
-            c = max(0, float(row.get("cv", 0)))
-            pv = max(0, float(row.get("page_view", 0)))
-            pos = float(row.get("avg_position", 9999))
-            return (np.log(s+1)*w_sales
-                    + c*w_cv
-                    + np.log(pv+1)*w_pv
-                    - pos*w_pos)
+            s   = float(row.get("sales", 0))
+            c   = float(row.get("cv", 0))
+            pv  = float(row.get("page_view", 0))
+            imp = float(row.get("imp", 0))
+            gr  = float(row.get("growth_rate", 0))     # 大きいほどプラス評価
+            pos = float(row.get("avg_position", 9999)) # 大きいほどマイナス評価
+
+            # ログを使うなどスケール調整
+            # sales と pv, imp は 0→∞ のため、log(s+1) などで圧縮
+            score = (np.log(s+1) * w_sales
+                     + c           * w_cv
+                     + np.log(pv+1)* w_pv
+                     + np.log(imp+1)* w_imp
+                     + gr          * w_gr
+                     - pos         * w_pos)
+            return score
 
         df["rewrite_priority"] = df.apply(calc_rp, axis=1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
@@ -222,14 +227,10 @@ def show_sheet1():
         else:
             def calc_cvrpos(row):
                 cl = float(row["click"])
-                c = float(row["cv"])
-                pos = float(row["avg_position"])
-                if cl <= 0:
-                    cvr = 0
-                else:
-                    cvr = c/cl
-                score = cvr/(pos+1)
-                return score
+                c  = float(row["cv"])
+                pos= float(row["avg_position"])
+                cvr= c/cl if cl>0 else 0
+                return cvr/(pos+1)
             df["cvravgpos_score"] = df.apply(calc_cvrpos, axis=1)
             df.sort_values("cvravgpos_score", ascending=False, inplace=True)
 
@@ -243,14 +244,15 @@ def show_sheet1():
         else:
             def calc_imp_revenue(row):
                 impv = float(row["imp"])
-                s = float(row.get("sales", 0))
-                c = float(row.get("cv", 0))
+                s    = float(row.get("sales", 0))
+                c    = float(row.get("cv", 0))
                 revenue = s if s>0 else c
                 return impv*revenue
             df["imp_revenue_score"] = df.apply(calc_imp_revenue, axis=1)
             df.sort_values("imp_revenue_score", ascending=False, inplace=True)
 
     # 表示用: セル横スクロール対応
+    import html
     def wrap_cell(val):
         s = str(val)
         s_esc = html.escape(s)
