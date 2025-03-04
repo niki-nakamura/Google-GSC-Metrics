@@ -22,13 +22,9 @@ def show_sheet1():
     - sum_position 列を非表示
     - page_view合計を小数点第一位
     - 新規4項目を post_title の直後に挿入
-    - growth_rate ボタンで計算列を追加
-    - CVR×avg_position ボタンで cv / click & その結果を avg_position と組み合わせた指標でソート
-    - 需要(imp) × 収益(sales or cv) ボタンで指標計算し、降順ソート
-    - 【改良】Rewrite Priority ボタンの計算式を売上やimp, growth_rateも加味するようアップデート
+    - Rewrite Priority Score ボタンで降順ソート（売上, cv, page_view, imp, growth_rate, avg_positionを統合）
     """
-
-    # CSSや前準備部分は変更なし
+    # CSSや前準備部分（テーブルのカスタムCSS）などはそのまま
     st.markdown(
         """
         <style>
@@ -115,77 +111,26 @@ def show_sheet1():
 
     st.write("### フィルタ & 拡張機能")
 
-    # フィルタUI (上段)
-    col1, col2, col3, col4 = st.columns([2.5, 2, 2, 2.5])
-    with col1:
-        filter_sales_cv = st.checkbox("売上 or CV が 0 以上のみ表示")
-    with col2:
-        cv_min = st.number_input("最低CV", value=0.0, step=0.5)
-    with col3:
-        pv_min = st.number_input("最低page_view", value=0.0, step=10.0)
-    with col4:
-        apply_multi_btn = st.button("Apply 複数条件フィルタ")
-
-    # 下段のボタン + caption
-    colA, colB, colC, colD, colE = st.columns([2.5, 2, 2, 2, 2.5])
-
-    # --- Rewrite Priority
+    # --- Rewrite Priority Score ボタンのみ表示 ---
+    colA, _ = st.columns([2.5, 7.5])
     with colA:
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
         st.caption("sales, cv, page_view, imp, growth_rate, avg_position などを統合した優先度")
 
-    # --- 伸びしろ(growth_rate)
-    with colB:
-        growth_btn = st.button("伸びしろ( growth_rate )")
-        st.caption("直近PVなどから成長率を計算。伸び代が大きい記事を優先")
-
-    # --- CVR×Avg.Position
-    with colC:
-        cvravgpos_btn = st.button("CVR × Avg. Position")
-        st.caption("CV / click と順位を組み合わせ。もう少し上げれば成果大の候補を抽出")
-
-    # --- 需要(imp) × 収益
-    with colD:
-        imp_sales_btn = st.button("需要(imp) × 収益(sales or cv)")
-        st.caption("imp×sales or cv。需要が大きく売上/コンバージョンが高い記事を抽出")
-
-    # colE はスペーサー
-
-    # ------ フィルタロジック ------
-    if filter_sales_cv:
-        if "sales" in df.columns:
-            df["sales"] = pd.to_numeric(df["sales"], errors="coerce").fillna(0)
-        if "cv" in df.columns:
-            df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
-        if "sales" in df.columns and "cv" in df.columns:
-            df = df[(df["sales"] > 0) | (df["cv"] > 0)]
-        else:
-            st.warning("sales や cv 列が無いためフィルタを適用できません。")
-
-    if apply_multi_btn:
-        if "cv" in df.columns:
-            df["cv"] = pd.to_numeric(df["cv"], errors="coerce").fillna(0)
-        if "page_view" in df.columns:
-            df["page_view"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
-        if "cv" in df.columns and "page_view" in df.columns:
-            df = df[(df["cv"] >= cv_min) & (df["page_view"] >= pv_min)]
-        else:
-            st.warning("cv や page_view 列が無いためフィルタできません。")
-
-    # 【改良】Rewrite Priority (リライト優先度) の計算ロジック
+    # ------ フィルタロジック（Rewrite Priorityのみ）------
     if rewrite_priority_btn:
-        # 必要な列を数値化
+        # 対象の各列を数値化
         for cname in ["sales","cv","page_view","avg_position","imp","growth_rate"]:
             if cname in df.columns:
                 df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
 
-        # 重み付け(必要に応じて調整)
-        w_sales = 1.0    # 売上をどの程度重視するか
-        w_cv    = 1.0    # CVをどの程度重視するか
-        w_pv    = 0.5    # PVをどの程度重視するか
-        w_imp   = 0.5    # インプレッション(需要)をどの程度重視するか
-        w_gr    = 0.3    # growth_rate(成長度合い)をどの程度加味するか
-        w_pos   = 0.2    # 平均順位(悪いほど優先度が高いようマイナスに)
+        # 重み付け（必要に応じて調整可能）
+        w_sales = 1.0    # 売上
+        w_cv    = 1.0    # CV
+        w_pv    = 0.5    # page_view
+        w_imp   = 0.5    # imp（インプレッション）
+        w_gr    = 0.3    # growth_rate（伸びしろ）
+        w_pos   = 0.2    # avg_position（平均順位；大きいほどマイナス評価）
 
         def calc_rp(row):
             s   = float(row.get("sales", 0))
@@ -195,8 +140,7 @@ def show_sheet1():
             gr  = float(row.get("growth_rate", 0))     # 大きいほどプラス評価
             pos = float(row.get("avg_position", 9999)) # 大きいほどマイナス評価
 
-            # ログを使うなどスケール調整
-            # sales と pv, imp は 0→∞ のため、log(s+1) などで圧縮
+            # ログ変換等でスケール調整
             score = (np.log(s+1) * w_sales
                      + c           * w_cv
                      + np.log(pv+1)* w_pv
@@ -208,51 +152,7 @@ def show_sheet1():
         df["rewrite_priority"] = df.apply(calc_rp, axis=1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
-    # 伸びしろ (growth_rate)
-    if growth_btn:
-        if "page_view" in df.columns:
-            df["page_view"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
-            df["growth_rate"] = ((df["page_view"] + 1)/(df["page_view"] + 5) - 1)*100
-            df["growth_rate"] = df["growth_rate"].round(1)
-        else:
-            st.warning("page_view 列が無いため growth_rate を計算できません。")
-
-    # CVR×avg_position
-    if cvravgpos_btn:
-        for cname in ["cv","click","avg_position"]:
-            if cname in df.columns:
-                df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
-        if not all(x in df.columns for x in ["cv","click","avg_position"]):
-            st.warning("cv, click, avg_position のいずれかが無いためCVR×avg_positionを計算不可。")
-        else:
-            def calc_cvrpos(row):
-                cl = float(row["click"])
-                c  = float(row["cv"])
-                pos= float(row["avg_position"])
-                cvr= c/cl if cl>0 else 0
-                return cvr/(pos+1)
-            df["cvravgpos_score"] = df.apply(calc_cvrpos, axis=1)
-            df.sort_values("cvravgpos_score", ascending=False, inplace=True)
-
-    # 需要(imp)×収益(sales or cv)
-    if imp_sales_btn:
-        for cname in ["imp","sales","cv"]:
-            if cname in df.columns:
-                df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
-        if "imp" not in df.columns:
-            st.warning("imp 列が無いため需要×収益を計算不可。")
-        else:
-            def calc_imp_revenue(row):
-                impv = float(row["imp"])
-                s    = float(row.get("sales", 0))
-                c    = float(row.get("cv", 0))
-                revenue = s if s>0 else c
-                return impv*revenue
-            df["imp_revenue_score"] = df.apply(calc_imp_revenue, axis=1)
-            df.sort_values("imp_revenue_score", ascending=False, inplace=True)
-
     # 表示用: セル横スクロール対応
-    import html
     def wrap_cell(val):
         s = str(val)
         s_esc = html.escape(s)
@@ -269,12 +169,12 @@ def show_sheet1():
                 return f'<div class="cell-content" style="text-align:right;">{html.escape(cell_str)}</div>'
         df["URL"] = df["URL"].apply(clickable_url)
 
-    # 他列は wrap_cell
+    # 他の列は wrap_cell を適用
     for col in df.columns:
         if col != "URL":
             df[col] = df[col].apply(wrap_cell)
 
-    # ヘッダーにも横スクロール
+    # ヘッダーにも横スクロール用のラッパーを適用
     new_cols = []
     for c in df.columns:
         c_esc = html.escape(c)
@@ -288,64 +188,6 @@ def show_sheet1():
         classes=["customtable"]
     )
     st.write(html_table, unsafe_allow_html=True)
-
-###################################
-# (Hidden) README doc
-###################################
-
-README_TEXT = """\
-# 直近7日間の「column」記事データ集計クエリ
-
-## 概要
-- **目的**  
-  - WordPress 投稿のうち `CONTENT_TYPE = 'column'` である記事を対象に、**直近7日間**の各種指標（セッション数、PV数、クリックなど）をBigQueryで集計。
-  - WordPress DBから記事の「カテゴリー情報」「SEO対策KW」などを取得・紐づけし、1つのテーブルとして出力。
-
-- **出力結果**  
-  - 直近7日間の平均を主とする複数指標（session, page_view, sales, cv等）や、30日間平均順位と7日間平均順位などの検索順位情報を付与。
-  - 「比較（7日間が良ければ＋）」で順位改善/悪化を確認。
-  - データはCSV出力され、Streamlitアプリでフィルタ・ソート可能。
-
-## テーブル構成・主なカラム
-| カラム名                       | 役割・意味                                      |
-|-------------------------------|-------------------------------------------------|
-| POST_ID                       | WordPressの投稿ID                               |
-| URL                           | 記事URL (`https://.../column/POST_ID`)         |
-| category                      | カテゴリー名(カンマ区切り)                      |
-| post_title                    | 記事タイトル                                   |
-| SEO対策KW                     | 主となるSEOキーワード                           |
-| 30日間平均順位               | 過去30日間の平均検索順位                        |
-| 7日間平均順位                | 過去7日間の平均検索順位                         |
-| 比較（7日間が良ければ＋）     | (7日間平均順位 - 30日間平均順位) 正の値で改善   |
-| session                       | 7日間平均セッション数                          |
-| page_view                     | 7日間平均ページビュー                           |
-| sales                         | 7日平均売上 (アフィリエイトなど)               |
-| cv                            | 7日平均コンバージョン                           |
-| click                         | 検索クリック数(7日平均)                         |
-| imp                           | 検索インプレッション(7日平均)                  |
-| avg_position                  | 検索順位(7日平均)                              |
-| growth_rate                   | 伸びしろ(ダミー計算)                            |
-| rewrite_priority              | リライト優先度スコア                            |
-| cvravgpos_score               | CVR×Avg.Positionスコア                          |
-| imp_revenue_score             | 需要(imp)×収益(sales or cv)                    |
-
-## Streamlitアプリでの機能
-
-1. **売上 or CV > 0** のみ表示  
-2. **複数条件フィルタ** (CV ≥ X & page_view ≥ Y)  
-3. **Rewrite Priority Score** (sales,cv,page_view,avg_positionで優先度算出)  
-4. **伸びしろ(growth_rate)** (ダミー式)  
-5. **CVR × Avg.Position** (cv/clickをavg_positionと組み合わせてスコア化)  
-6. **需要(imp) × 収益(sales or cv)** (impとsales/cvを掛け算)  
-7. セル横スクロール・URL右寄せなどUX改善
-
-## データ取得範囲
-```sql
-DECLARE DS_START_DATE STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY));
-DECLARE DS_END_DATE   STRING DEFAULT FORMAT_DATE('%Y%m%d', CURRENT_DATE());
-    """
-
-
 
 ###################################
 # (Hidden) README doc
