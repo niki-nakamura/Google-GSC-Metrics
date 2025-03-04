@@ -147,39 +147,43 @@ def show_sheet1():
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
         st.caption("sales, cv, page_view, imp, growth_rate, avg_position などを統合した優先度")
 
-    if rewrite_priority_btn:
-        # 対象の各列を数値化（欠損時は0）
-        for cname in ["sales","cv","page_view","imp","growth_rate","avg_position"]:
-            if cname in df.columns:
-                df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
+if rewrite_priority_btn:
+    # (1) salesが0の行を除外する
+    df = df[pd.to_numeric(df["sales"], errors="coerce").fillna(0) > 0]
 
-        # 重み付け（必要に応じて調整可能）
-        w_sales = 1.0    # 売上
-        w_cv    = 1.0    # CV
-        w_pv    = 0.5    # page_view
-        w_imp   = 0.5    # imp（インプレッション）
-        w_gr    = 0.3    # growth_rate（順位改善度合い）
-        w_pos   = 0.2    # avg_position（大きいほどマイナス評価）
+    # (2) 数値化処理
+    for cname in ["sales","cv","page_view","imp","growth_rate","avg_position"]:
+        if cname in df.columns:
+            df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
 
-        def calc_rp(row):
-            s   = float(row.get("sales", 0))
-            c   = float(row.get("cv", 0))
-            pv  = float(row.get("page_view", 0))
-            imp = float(row.get("imp", 0))
-            gr  = float(row.get("growth_rate", 0))     
-            pos = float(row.get("avg_position", 9999))
+    # (3) 重み付け（必要に応じて調整可能）
+    w_sales = 1.0    # 売上
+    w_cv    = 1.0    # CV
+    w_pv    = 0.5    # page_view
+    w_imp   = 0.5    # imp（インプレッション）
+    w_gr    = 0.3    # growth_rate（順位改善度合い）
+    w_pos   = 0.2    # avg_position（大きいほどマイナス評価）
 
-            # ログ変換等でスケール調整
-            score = (np.log(s+1) * w_sales
-                     + c           * w_cv
-                     + np.log(pv+1)* w_pv
-                     + np.log(imp+1)* w_imp
-                     + gr          * w_gr
-                     - pos         * w_pos)
-            return score
+    def calc_rp(row):
+        s   = float(row.get("sales", 0))
+        c   = float(row.get("cv", 0))
+        pv  = float(row.get("page_view", 0))
+        imp = float(row.get("imp", 0))
+        gr  = float(row.get("growth_rate", 0))     
+        pos = float(row.get("avg_position", 9999))
 
-        df["rewrite_priority"] = df.apply(calc_rp, axis=1)
-        df.sort_values("rewrite_priority", ascending=False, inplace=True)
+        # ログ変換等でスケール調整
+        score = (np.log(s+1) * w_sales
+                 + c           * w_cv
+                 + np.log(pv+1)* w_pv
+                 + np.log(imp+1)* w_imp
+                 + gr          * w_gr
+                 - pos         * w_pos)
+        return score
+
+    # (4) Rewrite Priority Score 計算・ソート
+    df["rewrite_priority"] = df.apply(calc_rp, axis=1)
+    df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
     # -------------------------------
     # 7) 表示用: セル横スクロール対応
