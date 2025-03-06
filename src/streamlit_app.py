@@ -230,7 +230,7 @@ def show_sheet1():
 ###################################
 
 
----
+README_TEXT = """\
 
 ## Rewrite Priority Score（リライト優先度）の考え方
 
