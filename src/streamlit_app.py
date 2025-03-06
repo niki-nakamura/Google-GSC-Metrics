@@ -243,20 +243,13 @@ README_TEXT = """\
 
 Rewrite Priority Score は、次の式に示すように **対数変換** と **重み付け** を組み合わせた評価指標です。
 
-\[
-\text{Rewrite Priority Score} \;=\;
-\bigl(\log(\text{sales} + 1)\times w_{\mathrm{sales}}\bigr)
-\;+\;
-\bigl(\text{cv}\times w_{\mathrm{cv}}\bigr)
-\;+\;
-\bigl(\log(\text{page\_view} + 1)\times w_{\mathrm{pv}}\bigr)
-\;+\;
-\bigl(\log(\text{imp} + 1)\times w_{\mathrm{imp}}\bigr)
-\;+\;
-\bigl(\text{growth\_rate}\times w_{\mathrm{gr}}\bigr)
-\;-\;
-\bigl(\text{avg\_position}\times w_{\mathrm{pos}}\bigr)
-\]
+Rewrite Priority Score  =  (log(sales + 1) * w_sales)
+                        + (cv               * w_cv)
+                        + (log(page_view+1) * w_pv)
+                        + (log(imp + 1)     * w_imp)
+                        + (growth_rate      * w_gr)
+                        - (avg_position     * w_pos)
+
 
 ### 2-1. 指標ごとの役割
 
