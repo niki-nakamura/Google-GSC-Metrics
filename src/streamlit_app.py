@@ -250,9 +250,6 @@ Rewrite Priority Score  =  (log(sales + 1) * w_sales)
                         + (growth_rate      * w_gr)
                         - (avg_position     * w_pos)
 
-
-### 2-1. 指標ごとの役割
-
 ---
 
 ### 2-1. 指標ごとの役割（例）
