@@ -21,14 +21,15 @@ def show_sheet1():
     CSVを読み込んで表示する。
     - sum_position 列を非表示
     - page_view合計を小数点第一位
-    - growth_rate（順位改善率）の計算
-    - Rewrite Priority Score ボタン（sales=0除外 + 降順ソート）
-    - Ahrefs風デザイン＆UI
-    - 表示列の順番もAhrefs風に揃える
+    - 新規4項目を post_title の直後に挿入
+    - growth_rate を「30日間平均順位」「7日間平均順位」から計算
+    - Rewrite Priority Score ボタンで sales=0 を除外し、降順ソート
+    Ahrefs風のデザイン（CSS）を適用
+    - 表示順も Ahrefs に似せる
     """
 
     # -------------------------------
-    # 1) テーブルのカスタムCSS + sorttable.js + UIヘッダー情報
+    # 1) CSSや前準備部分（テーブルのカスタムCSS + sorttable.js）
     # -------------------------------
     st.markdown(
         """
@@ -36,21 +37,22 @@ def show_sheet1():
         <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
 
         <style>
-        /* テーブル全体をAhrefs風にアップグレード */
+        /* テーブル全体をAhrefs風に調整 */
         table.ahrefs-table {
             border-collapse: separate;
             border-spacing: 0;
             border: 1px solid #ddd;
-            border-radius: 8px; /* 角丸を少し大きく */
+            border-radius: 6px;
             overflow: hidden;
             width: 100%;
             font-family: "Arial", sans-serif;
             font-size: 14px;
+            background-color: #fff;
         }
 
         /* ヘッダー部分 */
         table.ahrefs-table thead tr {
-            background-color: #f9f9f9; /* 少し明るめ */
+            background-color: #f7f7f7;
         }
         table.ahrefs-table thead th {
             font-weight: bold;
@@ -61,29 +63,30 @@ def show_sheet1():
 
         /* 角丸設定 */
         table.ahrefs-table thead tr:first-child th:first-child {
-            border-top-left-radius: 8px;
+            border-top-left-radius: 6px;
         }
         table.ahrefs-table thead tr:first-child th:last-child {
-            border-top-right-radius: 8px;
+            border-top-right-radius: 6px;
         }
         table.ahrefs-table tbody tr:last-child td:first-child {
-            border-bottom-left-radius: 8px;
+            border-bottom-left-radius: 6px;
         }
         table.ahrefs-table tbody tr:last-child td:last-child {
-            border-bottom-right-radius: 8px;
+            border-bottom-right-radius: 6px;
         }
 
         /* ボディ部分 */
         table.ahrefs-table tbody tr td {
             padding: 6px 8px;
-            border-bottom: 1px solid #eee; 
+            border-bottom: 1px solid #ddd;
             white-space: nowrap;
             vertical-align: middle;
+            transition: background-color 0.3s;
         }
 
-        /* ホバー時の色付け */
+        /* ホバー時 */
         table.ahrefs-table tbody tr:hover {
-            background-color: #fefefe;
+            background-color: #fafafa;
         }
 
         /* ソートできるテーブルのヘッダにはカーソルを指マークに */
@@ -102,82 +105,104 @@ def show_sheet1():
         /* 本文セルの中身を横スクロール許可 */
         table.ahrefs-table td .cell-content {
             display: inline-block;
-            max-width: 180px; /* 少し広めに */
+            max-width: 150px;
             white-space: nowrap;
             overflow-x: auto;
         }
 
-        /* URLセルを右寄せにして省略する例 */
-        .url-cell {
-            max-width: 260px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            text-align: right;
-            display: inline-block;
-        }
+        /* 正の値は緑、負の値は赤に */
+        .pos-change { color: green; }
+        .neg-change { color: red; }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    # ここでは例として「667 ページ」「合計トラフィック : 173.5K」「日付選択UI」などをあらかじめ書いておきます
-    st.subheader("667 ページ　合計トラフィック : 173.5K")
-    st.caption("2025年3月28日 vs. 2025年3月20日")
+    st.markdown("""
+    **項目定義**:  
+    直近7日間の各種指標をBigQueryで集計。
+    """)
 
     # -------------------------------
-    # 2) CSVを読み込む + 前処理
+    # 2) CSVを読み込む
     # -------------------------------
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 不要な列の除去
+    # 不要な列を削除
     if "ONTENT_TYPE" in df.columns:
         df.drop(columns=["ONTENT_TYPE"], inplace=True)
     if "sum_position" in df.columns:
         df.drop(columns=["sum_position"], inplace=True)
 
-    # 例: growth_rate が必要な場合（順位の改善率）
-    if "30日間平均順位" in df.columns and "7日間平均順位" in df.columns:
-        df["30日間平均順位"] = pd.to_numeric(df["30日間平均順位"], errors="coerce").fillna(0)
-        df["7日間平均順位"] = pd.to_numeric(df["7日間平均順位"], errors="coerce").fillna(0)
-        def calc_growth_rate(row):
-            old_pos = row["30日間平均順位"]
-            new_pos = row["7日間平均順位"]
-            if old_pos > 0:
-                return round(((old_pos - new_pos) / old_pos) * 100, 1)
-            return 0.0
-        df["growth_rate"] = df.apply(calc_growth_rate, axis=1)
+    # 新規4項目を post_title の直後に挿入 (元々の仕様)
+    new_cols = ["SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）"]
+    actual_new_cols = [c for c in new_cols if c in df.columns]
+    if "post_title" in df.columns:
+        idx = df.columns.get_loc("post_title")
+        col_list = list(df.columns)
+        for c in reversed(actual_new_cols):
+            if c in col_list:
+                col_list.remove(c)
+                col_list.insert(idx+1, c)
+        df = df[col_list]
 
-    # 数値列の丸め
+    # -------------------------------
+    # 3) 数値列の丸め処理
+    # -------------------------------
     numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
     # -------------------------------
-    # 3) Rewrite Priority Score ボタン + フィルタ
+    # 4) page_view合計(小数点第1位)を表示
+    # -------------------------------
+    if "page_view" in df.columns:
+        df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
+        total_pv = df["page_view_numeric"].sum()
+        st.metric("page_view の合計", f"{round(total_pv, 1)}")
+
+    # -------------------------------
+    # 5) growth_rate を「30日間平均順位」「7日間平均順位」から計算
+    # -------------------------------
+    if "30日間平均順位" in df.columns and "7日間平均順位" in df.columns:
+        df["30日間平均順位"] = pd.to_numeric(df["30日間平均順位"], errors="coerce").fillna(0)
+        df["7日間平均順位"] = pd.to_numeric(df["7日間平均順位"], errors="coerce").fillna(0)
+
+        def calc_growth_rate(row):
+            oldPos = row["30日間平均順位"]
+            newPos = row["7日間平均順位"]
+            if oldPos > 0:
+                return ((oldPos - newPos) / oldPos) * 100
+            else:
+                return 0
+        df["growth_rate"] = df.apply(calc_growth_rate, axis=1)
+        df["growth_rate"] = df["growth_rate"].round(1)
+
+    # -------------------------------
+    # 6) Rewrite Priority Score ボタン
     # -------------------------------
     st.write("### フィルタ & 拡張機能")
     colA, _ = st.columns([2.5, 7.5])
     with colA:
-        rewrite_priority_btn = st.button("Rewrite Priority Score で降順ソート")
-        st.caption("売上（収益）が発生している記事のみが対象となり、売上・CV・トラフィック・伸びしろ・検索順位などを総合評価し、優先度を算出")
+        rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
+        st.caption("売上（収益）が発生している記事のみ対象。売上・CV・トラフィック・伸びしろ・検索順位改善の全観点で評価。")
 
     if rewrite_priority_btn:
-        # sales=0 を除外
-        df = df[pd.to_numeric(df.get("sales", 0), errors="coerce").fillna(0) > 0]
+        # (1) sales が 0 の行を除外
+        df = df[pd.to_numeric(df["sales"], errors="coerce").fillna(0) > 0]
 
-        # 30日間平均順位 & 7日間平均順位 がどちらも <=3 の場合を除外
-        if {"30日間平均順位", "7日間平均順位"}.issubset(df.columns):
+        # (1-2) 「30日間平均順位」「7日間平均順位」がどちらも 3.0位以下の行を除外
+        if "30日間平均順位" in df.columns and "7日間平均順位" in df.columns:
             df = df[~((df["30日間平均順位"] <= 3) & (df["7日間平均順位"] <= 3))]
 
-        # 数値化
+        # (2) 数値化
         for cname in ["sales", "cv", "page_view", "imp", "growth_rate", "avg_position"]:
             if cname in df.columns:
                 df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
 
-        # スコア計算
+        # (3) 重み付け
         w_sales = 1.0
         w_cv    = 1.0
         w_pv    = 0.5
@@ -186,79 +211,83 @@ def show_sheet1():
         w_pos   = 0.2
 
         def calc_rp(row):
-            s   = row.get("sales", 0)
-            c   = row.get("cv", 0)
-            pv  = row.get("page_view", 0)
-            imp = row.get("imp", 0)
-            gr  = row.get("growth_rate", 0)
-            pos = row.get("avg_position", 9999)
-            score = (np.log(s+1)*w_sales
-                     + c*w_cv
-                     + np.log(pv+1)*w_pv
-                     + np.log(imp+1)*w_imp
-                     + gr*w_gr
-                     - pos*w_pos)
+            s   = float(row.get("sales", 0))
+            c   = float(row.get("cv", 0))
+            pv  = float(row.get("page_view", 0))
+            imp = float(row.get("imp", 0))
+            gr  = float(row.get("growth_rate", 0))
+            pos = float(row.get("avg_position", 9999))
+
+            score = (np.log(s+1) * w_sales
+                     + c * w_cv
+                     + np.log(pv+1) * w_pv
+                     + np.log(imp+1)* w_imp
+                     + gr * w_gr
+                     - pos * w_pos)
             return score
 
+        # (4) スコア算出・ソート
         df["rewrite_priority"] = df.apply(calc_rp, axis=1).round(1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
     # -------------------------------
-    # 4) 表示順をAhrefs風に揃える（例）
+    # 7) Ahrefs風の列順に並べ替える (サンプル)
     # -------------------------------
-    # 例: 「URL」「ステータス」「トラフィック」「変更」... の順に並べる
-    desired_order = [
-        "URL",           # 例: ページURL
-        "ステータス",      # 例: 9,426 5.4%
-        "トラフィック",      # 例: 9426
-        "変更",           # 例: -1.8K
+    # 例: スクショにある「URL」「ステータス」「トラフィック」「変更」「値」「変更(値)」「キーワード」「変更(KW)」「トップキーワード」…の順序
+    desired_cols = [
+        "URL",           # クリック可能リンク
+        "ステータス",     # 例: 9,426 5.4%
+        "トラフィック",     # 例: 9426
+        "変更",          # 例: -1800
         "値",            # 例: $2.7K
-        "変更(値)",       # 例: -$509
-        "キーワード",       # 例: 2,516
-        "変更(KW)",       # 例: -1.3K
-        "トップキーワード",  # 例: ポイ活 おすすめ
-        "ボリューム",       # 例: 45.0K
+        "変更(値)",      # 例: -$509
+        "キーワード",      # 例: 2,516
+        "変更(KW)",      # 例: -1,300
+        "トップキーワード", # 例: ボイ活 おすすめ
+        "ボリューム",      # 例: 45.0K
         "順位",           # 例: 7
-        "コンテンツの変更",   # 例: 大 or 小
-        "検査"            # 例: 🔍(虫メガネ)
+        "コンテンツの変更",# 例: 大 or 小
+        "検査"           # 例: 🔍
     ]
-    # CSVに本当にある列だけを抽出
-    existing_cols = [c for c in desired_order if c in df.columns]
-    df = df[existing_cols] if existing_cols else df
+    # CSVにあれば順番を強制する
+    exist_cols = [c for c in desired_cols if c in df.columns]
+    # 追加で、Rewrite Priority Score など残りの列も最後に
+    others = [c for c in df.columns if c not in exist_cols]
+    final_cols = exist_cols + others
+    df = df[final_cols]
 
     # -------------------------------
-    # 5) セルのHTML整形 (URLを右寄せ + リンク化、その他はスクロールWrap)
+    # 8) セルをHTML化 + 値の増減を色付けするなど
     # -------------------------------
-    def wrap_cell(val):
-        s = str(val)
-        s_esc = html.escape(s)
-        return f'<div class="cell-content">{s_esc}</div>'
+    def format_change(cell):
+        """数値(±)を色付けする例。"""
+        s = str(cell)
+        try:
+            val = float(s)
+            if val > 0:
+                return f'<div class="cell-content pos-change">+{val}</div>'
+            elif val < 0:
+                return f'<div class="cell-content neg-change">{val}</div>'
+            else:
+                return f'<div class="cell-content">{val}</div>'
+        except:
+            return f'<div class="cell-content">{html.escape(s)}</div>'
 
-    if "URL" in df.columns:
-        def make_clickable_url(url_val):
-            s_esc = html.escape(str(url_val))
-            return f'<div class="url-cell"><a href="{s_esc}" target="_blank">{s_esc}</a></div>'
-        df["URL"] = df["URL"].apply(make_clickable_url)
+    # もし CSV 上で「変更」「変更(値)」「変更(KW)」などが数値なら色付け
+    for colname in ["変更","変更(値)","変更(KW)"]:
+        if colname in df.columns:
+            df[colname] = df[colname].apply(format_change)
 
-    # その他の列をラップ
-    for col in df.columns:
-        if col != "URL":  # URLはすでに整形済み
-            df[col] = df[col].apply(wrap_cell)
-
-    # ヘッダに <div class="header-content"> を付与
-    new_cols = []
-    for c in df.columns:
-        c_esc = html.escape(c)
-        new_cols.append(f'<div class="header-content">{c_esc}</div>')
-    df.columns = new_cols
+    # URL は既にクリック化されているはず
+    # 残りのセルは通常ラップ済み  →  ここでさらに強調したい項目があれば書く
 
     # -------------------------------
-    # 6) HTMLテーブル化 (sortable)
+    # 9) テーブルをHTMLにして表示
     # -------------------------------
     html_table = df.to_html(
         escape=False,
         index=False,
-        classes=["ahrefs-table", "sortable"]
+        classes=["ahrefs-table", "sortable"]  # 列見出しクリックソート
     )
     st.write(html_table, unsafe_allow_html=True)
 
