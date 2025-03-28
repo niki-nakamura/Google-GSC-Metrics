@@ -2,163 +2,133 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import html
-from data_fetcher import main_fetch_all
 
-# ページ全体を横幅を広めに使う設定
 st.set_page_config(layout="wide")
 
 def load_data() -> pd.DataFrame:
     """
-    sheet_query_data.csv を読み込み、失敗したら空DataFrameを返す。
+    CSVファイルなどからデータをロードして返す。
+    ここではサンプルとして適当なデータフレームを生成しています。
     """
-    try:
-        return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
-    except:
-        return pd.DataFrame()
+    # 本来は df = pd.read_csv(...) 等
+    data = {
+        "URL": [
+            "https://example.com/page1",
+            "https://example.com/page2",
+            "https://example.com/page3",
+        ],
+        "ステータス": ["9,426 5.4%", "6,781 3.9%", "6,302 3.8%"],   # 例：トラフィック数 + 前週比%など
+        "トラフィック": [9426, 6781, 6302],  # 適当な値
+        "変更": [-1800, -794, +21],          # 例：直近比較での増減
+        "値": ["$2.7K", "$1.0K", "$3.8K"],   # 例：想定収益や価値
+        "変更(値)": ["-$509", "-$109", "+$21"],
+        "キーワード": [2516, 1759, 209],    # 例：検索流入KW数
+        "変更(KW)": [-1300, -310, +20],
+        "トップキーワード": ["ポイ活 おすすめ", "スマホアプリ おすすめ", "資産管理 アプリ"],
+        "ボリューム": ["45.0K", "2.8K\n8.2K", "4.3K"],
+        "順位": [7, 5, 1],                  # 例：メインKW順位
+        "コンテンツの変更": ["大", "小", "小"],
+        "検査": ["🔍", "🔍", "🔍"],          # 例：虫メガネアイコン相当(飾り)
+    }
+    df = pd.DataFrame(data)
+    return df
 
-def show_sheet1():  # ← ここを show_sheet1 に
-    """
-    Ahrefsの「上位ページ」表を模した形で、
-    ユーザーが用意した全ての指標をテーブル表示する。
-    """
-
-    # -------------------------------
-    # 1) CSSや前準備部分（テーブルのカスタムCSS + sorttable.js）
-    # -------------------------------
+def show_top_pages_ahrefs_style():
     st.markdown(
         """
         <!-- sorttable.js (列ヘッダクリックでソート可能にする) -->
         <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
-        
+
         <style>
-        /* テーブル全体のデザイン */
-        table.customtable {
+        /* テーブル全体 */
+        table.ahrefs-table {
             border-collapse: separate;
             border-spacing: 0;
             border: 1px solid #ddd;
-            border-radius: 8px;
+            border-radius: 6px;
             overflow: hidden;
             width: 100%;
+            font-family: "Arial", sans-serif;
+            font-size: 14px;
         }
-        /* 角丸設定 */
-        table.customtable thead tr:first-child th:first-child {
-            border-top-left-radius: 8px;
+
+        /* ヘッダー部分 */
+        table.ahrefs-table thead tr {
+            background-color: #f7f7f7;
         }
-        table.customtable thead tr:first-child th:last-child {
-            border-top-right-radius: 8px;
-        }
-        table.customtable tbody tr:last-child td:first-child {
-            border-bottom-left-radius: 8px;
-        }
-        table.customtable tbody tr:last-child td:last-child {
-            border-bottom-right-radius: 8px;
-        }
-        /* ヘッダー部分のセルも nowrap + 横スクロール可能に */
-        table.customtable thead th .header-content {
-            display: inline-block;
-            max-width: 120px; 
+        table.ahrefs-table thead th {
+            font-weight: bold;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
             white-space: nowrap;
-            overflow-x: auto;
         }
-        /* 本文セルの中身を横スクロール許可 */
-        table.customtable td .cell-content {
-            display: inline-block;
-            max-width: 150px;
+
+        /* 角丸 */
+        table.ahrefs-table thead tr:first-child th:first-child {
+            border-top-left-radius: 6px;
+        }
+        table.ahrefs-table thead tr:first-child th:last-child {
+            border-top-right-radius: 6px;
+        }
+
+        /* ボディ部分 */
+        table.ahrefs-table tbody tr td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #ddd;
             white-space: nowrap;
-            overflow-x: auto;
+            vertical-align: middle;
         }
+
+        /* ホバー時 */
+        table.ahrefs-table tbody tr:hover {
+            background-color: #fafafa;
+        }
+
         /* ソートできるテーブルのヘッダにはカーソルを指マークに */
         table.sortable thead {
             cursor: pointer;
+        }
+
+        /* URLセルをやや広げる例 */
+        .url-cell {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    st.markdown("#### 上位ページテーブル（指標一覧）")
+    st.markdown("## 上位ページ (Ahrefs風)")
 
-    # -------------------------------
-    # 2) CSV読み込み
-    # -------------------------------
     df = load_data()
     if df.empty:
-        st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
+        st.warning("データがありません。")
         return
 
-    # -------------------------------
-    # 3) 表示したい列を定義
-    # -------------------------------
-    desired_cols = [
-        "SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）",
-        "ONTENT_TYPE", "POST_ID", "URL", "category", "post_title",
-        "session", "session_30d", "session_90d", "session_180d",
-        "traffic_change_7d_vs_30d", "cvr_7d", "sales_7d", "sales_30d", 
-        "sales_90d", "sales_180d", "sales_change_7d_vs_30d",
-        "page_view_7d", "page_view_30d", "page_view_90d", "page_view_180d",
-        "click_app_store_7d", "click_app_store_30d", "click_app_store_90d", "click_app_store_180d",
-        "article_ctr_7d", "article_ctr_30d", "article_ctr_90d", "article_ctr_180d",
-        "imp_7d", "imp_30d", "imp_90d", "imp_180d",
-        "click_7d", "click_30d", "click_90d", "click_180d",
-        "search_ctr_7d", "search_ctr_30d", "search_ctr_90d", "search_ctr_180d",
-        "pv_unit_sales_7d", "pv_unit_sales_30d", "pv_unit_sales_90d", "pv_unit_sales_180d",
-        "cv_7d", "cv_30d", "cv_90d", "cv_180d",
-        "cvr_7d_1", "cvr_30d", "cvr_90d", "cvr_180d",
-        "growth_rate_7d", "Top 7-day Keywords", "Top 30-day Keywords"
-    ]
-    existing_cols = [c for c in desired_cols if c in df.columns]
-    df = df[existing_cols]
+    # URLカラムをクリッカブルに
+    def clickable_url(url):
+        url_esc = html.escape(str(url))
+        return f'<div class="url-cell"><a href="{url_esc}" target="_blank">{url_esc}</a></div>'
 
-    # -------------------------------
-    # 4) 数値列の丸め
-    # -------------------------------
-    numeric_cols = df.select_dtypes(include=["float","int"]).columns
-    df[numeric_cols] = df[numeric_cols].round(1)
+    df["URL"] = df["URL"].apply(clickable_url)
 
-    # -------------------------------
-    # 5) URLをクリッカブル化
-    # -------------------------------
-    if "URL" in df.columns:
-        def clickable_url(cell):
-            cell_str = str(cell)
-            if cell_str.startswith("http"):
-                esc = html.escape(cell_str)
-                return f'<div class="cell-content" style="text-align:right;"><a href="{esc}" target="_blank">{esc}</a></div>'
-            else:
-                return f'<div class="cell-content" style="text-align:right;">{html.escape(cell_str)}</div>'
-        df["URL"] = df["URL"].apply(clickable_url)
-
-    # -------------------------------
-    # 6) それ以外のセルもスクロール可能に
-    # -------------------------------
-    def wrap_cell(val):
-        s = str(val)
-        s_esc = html.escape(s)
-        return f'<div class="cell-content">{s_esc}</div>'
-
-    for col in df.columns:
-        # すでにURLカラムは整形済みなので、それ以外はラップ
-        if "<a href=" not in df[col].astype(str).values[0]:
-            df[col] = df[col].apply(wrap_cell)
-
-    # -------------------------------
-    # 7) テーブルヘッダを <div class="header-content"> でラップ
-    # -------------------------------
-    new_cols = []
-    for c in df.columns:
-        c_esc = html.escape(c)
-        new_cols.append(f'<div class="header-content">{c_esc}</div>')
-    df.columns = new_cols
-
-    # -------------------------------
-    # 8) HTMLテーブル化 (sortable クラス付与)
-    # -------------------------------
+    # テーブルを HTML 化
     html_table = df.to_html(
-        escape=False,
         index=False,
-        classes=["customtable", "sortable"]
+        escape=False,            # カラム内のHTML(aタグなど)をそのまま埋め込み
+        classes=["ahrefs-table", "sortable"]
     )
+
     st.write(html_table, unsafe_allow_html=True)
+
+def main():
+    show_top_pages_ahrefs_style()
+
+if __name__ == "__main__":
+    main()
 
 ###################################
 # (Hidden) README doc
