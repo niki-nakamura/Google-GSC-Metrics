@@ -16,14 +16,10 @@ def load_data() -> pd.DataFrame:
     except:
         return pd.DataFrame()
 
-def show_sheet1():
+def show_top_pages():
     """
-    CSVを読み込んで表示する。
-    - sum_position 列を非表示
-    - page_view合計を小数点第一位
-    - 新規4項目を post_title の直後に挿入
-    - growth_rate を「30日間平均順位」「7日間平均順位」から計算
-    - Rewrite Priority Score ボタンで sales=0 を除外し、降順ソート
+    Ahrefsの「上位ページ」表を模した形で、
+    ユーザーが用意した全ての指標をテーブル表示する。
     """
 
     # -------------------------------
@@ -80,128 +76,49 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    st.markdown("""
-    **項目定義**:  
-    直近7日間の各種指標をBigQueryで集計。
-    """)
+    st.markdown("#### 上位ページテーブル（指標一覧）")
 
     # -------------------------------
-    # 2) CSVを読み込む
+    # 2) CSV読み込み
     # -------------------------------
     df = load_data()
     if df.empty:
         st.warning("まだデータがありません。CSVが空か、データ取得がまだかもしれません。")
         return
 
-    # 不要な列削除
-    if "ONTENT_TYPE" in df.columns:
-        df.drop(columns=["ONTENT_TYPE"], inplace=True)
-    if "sum_position" in df.columns:
-        df.drop(columns=["sum_position"], inplace=True)
-
-    # 新規4項目を post_title の直後に挿入
-    new_cols = ["SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）"]
-    actual_new_cols = [c for c in new_cols if c in df.columns]
-    if "post_title" in df.columns:
-        idx = df.columns.get_loc("post_title")
-        col_list = list(df.columns)
-        for c in reversed(actual_new_cols):
-            if c in col_list:
-                col_list.remove(c)
-                col_list.insert(idx+1, c)
-        df = df[col_list]
+    # -------------------------------
+    # 3) 今回表示したい列の順序を定義
+    # -------------------------------
+    desired_cols = [
+        "SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）",
+        "ONTENT_TYPE", "POST_ID", "URL", "category", "post_title",
+        "session", "session_30d", "session_90d", "session_180d",
+        "traffic_change_7d_vs_30d", "cvr_7d", "sales_7d", "sales_30d", 
+        "sales_90d", "sales_180d", "sales_change_7d_vs_30d",
+        "page_view_7d", "page_view_30d", "page_view_90d", "page_view_180d",
+        "click_app_store_7d", "click_app_store_30d", "click_app_store_90d", "click_app_store_180d",
+        "article_ctr_7d", "article_ctr_30d", "article_ctr_90d", "article_ctr_180d",
+        "imp_7d", "imp_30d", "imp_90d", "imp_180d",
+        "click_7d", "click_30d", "click_90d", "click_180d",
+        "search_ctr_7d", "search_ctr_30d", "search_ctr_90d", "search_ctr_180d",
+        "pv_unit_sales_7d", "pv_unit_sales_30d", "pv_unit_sales_90d", "pv_unit_sales_180d",
+        "cv_7d", "cv_30d", "cv_90d", "cv_180d",
+        "cvr_7d_1", "cvr_30d", "cvr_90d", "cvr_180d",
+        "growth_rate_7d", "Top 7-day Keywords", "Top 30-day Keywords"
+    ]
+    # データフレームに存在する列だけを抽出
+    existing_cols = [c for c in desired_cols if c in df.columns]
+    df = df[existing_cols]
 
     # -------------------------------
-    # 3) 数値列の丸め処理
+    # 4) 数値列の小数点丸めなどの簡単な処理
     # -------------------------------
     numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
     # -------------------------------
-    # 4) page_view合計(小数点第1位)を表示
+    # 5) URL列をクリッカブルに
     # -------------------------------
-    if "page_view" in df.columns:
-        df["page_view_numeric"] = pd.to_numeric(df["page_view"], errors="coerce").fillna(0)
-        total_pv = df["page_view_numeric"].sum()
-        st.metric("page_view の合計", f"{round(total_pv, 1)}")
-
-    # -------------------------------
-    # 5) growth_rate を「30日間平均順位」「7日間平均順位」から計算
-    # -------------------------------
-    if "30日間平均順位" in df.columns and "7日間平均順位" in df.columns:
-        df["30日間平均順位"] = pd.to_numeric(df["30日間平均順位"], errors="coerce").fillna(0)
-        df["7日間平均順位"] = pd.to_numeric(df["7日間平均順位"], errors="coerce").fillna(0)
-
-        def calc_growth_rate(row):
-            oldPos = row["30日間平均順位"]
-            newPos = row["7日間平均順位"]
-            if oldPos > 0:
-                return ((oldPos - newPos) / oldPos) * 100
-            else:
-                return 0
-        df["growth_rate"] = df.apply(calc_growth_rate, axis=1)
-        df["growth_rate"] = df["growth_rate"].round(1)
-
-    # -------------------------------
-    # 6) Rewrite Priority Score ボタン
-    # -------------------------------
-    st.write("### フィルタ & 拡張機能")
-    colA, _ = st.columns([2.5, 7.5])
-    with colA:
-        rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
-        st.caption("売上（収益）が発生している記事のみが対象となり、売上、コンバージョン、トラフィック、伸びしろ、検索順位改善の全ての観点から総合的に評価された記事が上位にくる")
-
-    # ---- ここでボタンの処理を実行 (関数内に含める) ----
-    if rewrite_priority_btn:
-        # (1) sales が 0 の行を除外
-        df = df[pd.to_numeric(df["sales"], errors="coerce").fillna(0) > 0]
-
-        # ★ ここで 「30日間平均順位」「7日間平均順位」がどちらも 3.0位以下の行を除外
-        if "30日間平均順位" in df.columns and "7日間平均順位" in df.columns:
-            # 両方とも <= 3 の行を除外する => (条件式)を反転させて取り除く
-            df = df[~((df["30日間平均順位"] <= 3) & (df["7日間平均順位"] <= 3))]
-
-        # (2) 数値化処理
-        for cname in ["sales","cv","page_view","imp","growth_rate","avg_position"]:
-            if cname in df.columns:
-                df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
-
-        # (3) 重み付け
-        w_sales = 1.0
-        w_cv    = 1.0
-        w_pv    = 0.5
-        w_imp   = 0.5
-        w_gr    = 0.3
-        w_pos   = 0.2
-
-        def calc_rp(row):
-            s   = float(row.get("sales", 0))
-            c   = float(row.get("cv", 0))
-            pv  = float(row.get("page_view", 0))
-            imp = float(row.get("imp", 0))
-            gr  = float(row.get("growth_rate", 0))     
-            pos = float(row.get("avg_position", 9999))
-
-            score = (np.log(s+1) * w_sales
-                    + c * w_cv
-                    + np.log(pv+1)* w_pv
-                    + np.log(imp+1)* w_imp
-                    + gr * w_gr
-                    - pos * w_pos)
-            return score
-
-        # (4) Rewrite Priority Score 計算・ソート
-        df["rewrite_priority"] = df.apply(calc_rp, axis=1).round(1)
-        df.sort_values("rewrite_priority", ascending=False, inplace=True)
-
-    # -------------------------------
-    # 7) 表示用: セル横スクロール対応
-    # -------------------------------
-    def wrap_cell(val):
-        s = str(val)
-        s_esc = html.escape(s)
-        return f'<div class="cell-content">{s_esc}</div>'
-
     if "URL" in df.columns:
         def clickable_url(cell):
             cell_str = str(cell)
@@ -212,10 +129,22 @@ def show_sheet1():
                 return f'<div class="cell-content" style="text-align:right;">{html.escape(cell_str)}</div>'
         df["URL"] = df["URL"].apply(clickable_url)
 
+    # -------------------------------
+    # 6) 他のセルもスクロール可能なようにラップ
+    # -------------------------------
+    def wrap_cell(val):
+        s = str(val)
+        s_esc = html.escape(s)
+        return f'<div class="cell-content">{s_esc}</div>'
+
     for col in df.columns:
-        if col != "URL":
+        # URL 以外は通常のセル処理
+        if "<a href=" not in df[col].astype(str).values[0]:
             df[col] = df[col].apply(wrap_cell)
 
+    # -------------------------------
+    # 7) テーブルヘッダを <div class="header-content"> でラップ
+    # -------------------------------
     new_cols = []
     for c in df.columns:
         c_esc = html.escape(c)
@@ -223,12 +152,12 @@ def show_sheet1():
     df.columns = new_cols
 
     # -------------------------------
-    # 8) HTMLテーブルに変換して表示（sortable クラスを追加）
+    # 8) HTMLテーブル化 (sortable クラス付与) して表示
     # -------------------------------
     html_table = df.to_html(
         escape=False,
         index=False,
-        classes=["customtable", "sortable"]  # ← ここが重要
+        classes=["customtable", "sortable"]  # ← 列見出しクリックでソート可
     )
     st.write(html_table, unsafe_allow_html=True)
 
