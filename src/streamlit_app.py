@@ -24,6 +24,7 @@ def show_sheet1():
     - 新規4項目を post_title の直後に挿入
     - growth_rate を「30日間平均順位」「7日間平均順位」から計算
     - Rewrite Priority Score ボタンで sales=0 を除外し、降順ソート
+    Ahrefs風のデザイン（CSS）を適用
     """
 
     # -------------------------------
@@ -33,47 +34,77 @@ def show_sheet1():
         """
         <!-- sorttable.js (列ヘッダクリックでソート可能にする) -->
         <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
-        
+
         <style>
-        /* テーブル全体のデザイン */
-        table.customtable {
+        /* テーブル全体をAhrefs風に調整 */
+        table.ahrefs-table {
             border-collapse: separate;
             border-spacing: 0;
             border: 1px solid #ddd;
-            border-radius: 8px;
+            border-radius: 6px;
             overflow: hidden;
             width: 100%;
+            font-family: "Arial", sans-serif;
+            font-size: 14px;
         }
+
+        /* ヘッダー部分 */
+        table.ahrefs-table thead tr {
+            background-color: #f7f7f7;
+        }
+        table.ahrefs-table thead th {
+            font-weight: bold;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
+        }
+
         /* 角丸設定 */
-        table.customtable thead tr:first-child th:first-child {
-            border-top-left-radius: 8px;
+        table.ahrefs-table thead tr:first-child th:first-child {
+            border-top-left-radius: 6px;
         }
-        table.customtable thead tr:first-child th:last-child {
-            border-top-right-radius: 8px;
+        table.ahrefs-table thead tr:first-child th:last-child {
+            border-top-right-radius: 6px;
         }
-        table.customtable tbody tr:last-child td:first-child {
-            border-bottom-left-radius: 8px;
+        table.ahrefs-table tbody tr:last-child td:first-child {
+            border-bottom-left-radius: 6px;
         }
-        table.customtable tbody tr:last-child td:last-child {
-            border-bottom-right-radius: 8px;
+        table.ahrefs-table tbody tr:last-child td:last-child {
+            border-bottom-right-radius: 6px;
         }
+
+        /* ボディ部分 */
+        table.ahrefs-table tbody tr td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        /* ホバー時 */
+        table.ahrefs-table tbody tr:hover {
+            background-color: #fafafa;
+        }
+
+        /* ソートできるテーブルのヘッダにはカーソルを指マークに */
+        table.sortable thead {
+            cursor: pointer;
+        }
+
         /* ヘッダー部分のセルも nowrap + 横スクロール可能に */
-        table.customtable thead th .header-content {
+        table.ahrefs-table thead th .header-content {
             display: inline-block;
-            max-width: 120px; 
+            max-width: 120px;
             white-space: nowrap;
             overflow-x: auto;
         }
+
         /* 本文セルの中身を横スクロール許可 */
-        table.customtable td .cell-content {
+        table.ahrefs-table td .cell-content {
             display: inline-block;
             max-width: 150px;
             white-space: nowrap;
             overflow-x: auto;
-        }
-        /* ソートできるテーブルのヘッダにはカーソルを指マークに */
-        table.sortable thead {
-            cursor: pointer;
         }
         </style>
         """,
@@ -195,7 +226,7 @@ def show_sheet1():
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
     # -------------------------------
-    # 7) 表示用: セル横スクロール対応
+    # 7) 表示用: セル横スクロール対応(Ahrefs風)
     # -------------------------------
     def wrap_cell(val):
         s = str(val)
@@ -228,9 +259,10 @@ def show_sheet1():
     html_table = df.to_html(
         escape=False,
         index=False,
-        classes=["customtable", "sortable"]  # ← ここが重要
+        classes=["ahrefs-table", "sortable"]  # ← Ahrefs風デザイン + 列見出しクリックソート
     )
     st.write(html_table, unsafe_allow_html=True)
+
 
 ###################################
 # (Hidden) README doc
@@ -281,7 +313,7 @@ Rewrite Priority Score  =  (log(sales + 1) * w_sales)
    - **w_imp**: インプレッションの重要度をコントロールする重み  
 
 5. **(growth_rate * w_gr)**  
-   - **growth_rate**: 「30日平均順位 → 7日平均順位」の **順位改善率(%)**  
+   - **growth_rate**: 「30日間平均順位 → 7日間平均順位」の **順位改善率(%)**  
    - 値が大きいほど「最近順位が上昇傾向」で伸びしろがあると判断  
    - **w_gr**: 順位改善度合いをどれだけ重視するか  
 
@@ -352,4 +384,3 @@ def streamlit_main():
 
 if __name__ == "__main__":
     streamlit_main()
-    
