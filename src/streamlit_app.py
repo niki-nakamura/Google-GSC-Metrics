@@ -5,6 +5,10 @@ import html
 from data_fetcher import main_fetch_all
 
 def load_data() -> pd.DataFrame:
+# ページ全体を横幅を広めに使う設定
+st.set_page_config(layout="wide")
+
+def load_data() -> pd.DataFrame:
     """
     sheet_query_data.csv を読み込み、失敗したら空DataFrameを返す。
     """
@@ -148,20 +152,22 @@ def show_sheet1():
         rewrite_priority_btn = st.button("Rewrite Priority Scoreで降順ソート")
         st.caption("売上（収益）が発生している記事のみが対象となり、売上、コンバージョン、トラフィック、伸びしろ、検索順位改善の全ての観点から総合的に評価された記事が上位にくる")
 
+    # ---- ここでボタンの処理を実行 (関数内に含める) ----
     if rewrite_priority_btn:
         # (1) sales が 0 の行を除外
         df = df[pd.to_numeric(df["sales"], errors="coerce").fillna(0) > 0]
 
-        # (2) 30日平均順位 & 7日平均順位 がどちらも 3.0位以下なら除外
+        # ★ ここで 「30日間平均順位」「7日間平均順位」がどちらも 3.0位以下の行を除外
         if "30日間平均順位" in df.columns and "7日間平均順位" in df.columns:
+            # 両方とも <= 3 の行を除外する => (条件式)を反転させて取り除く
             df = df[~((df["30日間平均順位"] <= 3) & (df["7日間平均順位"] <= 3))]
 
-        # (3) 数値化処理
+        # (2) 数値化処理
         for cname in ["sales","cv","page_view","imp","growth_rate","avg_position"]:
             if cname in df.columns:
                 df[cname] = pd.to_numeric(df[cname], errors="coerce").fillna(0)
 
-        # (4) 重み付け
+        # (3) 重み付け
         w_sales = 1.0
         w_cv    = 1.0
         w_pv    = 0.5
@@ -174,7 +180,7 @@ def show_sheet1():
             c   = float(row.get("cv", 0))
             pv  = float(row.get("page_view", 0))
             imp = float(row.get("imp", 0))
-            gr  = float(row.get("growth_rate", 0))
+            gr  = float(row.get("growth_rate", 0))     
             pos = float(row.get("avg_position", 9999))
 
             score = (np.log(s+1) * w_sales
@@ -185,66 +191,45 @@ def show_sheet1():
                     - pos * w_pos)
             return score
 
+        # (4) Rewrite Priority Score 計算・ソート
         df["rewrite_priority"] = df.apply(calc_rp, axis=1).round(1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
     # -------------------------------
-    # 7) 表示用: HTMLラップ処理の振り分け
+    # 7) 表示用: セル横スクロール対応
     # -------------------------------
-    def wrap_cell_text(val):
-        """文字列・非数値列向け: HTMLで<div>ラップ"""
-        s_esc = html.escape(str(val))
-        return f'<div class="cell-content">{s_esc}</div>'
-
     def wrap_cell_numeric(val):
-        """数値列向け: sorttable.js に数値と認識させるためのクラス付与"""
-        s_esc = html.escape(str(val))
-        # ここでは <span> 等でラップし、td 生成は to_html に任せる
-        return f'<span class="sorttable_numeric">{s_esc}</span>'
+    s = str(val)
+    s_esc = html.escape(s)
+    return f'<td class="sorttable_numeric"><div class="cell-content">{s_esc}</div></td>'
 
-    def clickable_url(cell):
-        cell_str = str(cell)
-        if cell_str.startswith("http"):
-            esc = html.escape(cell_str)
-            return f'<div class="cell-content" style="text-align:right;"><a href="{esc}" target="_blank">{esc}</a></div>'
-        else:
-            return f'<div class="cell-content" style="text-align:right;">{html.escape(cell_str)}</div>'
-
-    # numeric_cols は上で定義済み
-    # まずURL列だけ先に置き換え
     if "URL" in df.columns:
+        def clickable_url(cell):
+            cell_str = str(cell)
+            if cell_str.startswith("http"):
+                esc = html.escape(cell_str)
+                return f'<div class="cell-content" style="text-align:right;"><a href="{esc}" target="_blank">{esc}</a></div>'
+            else:
+                return f'<div class="cell-content" style="text-align:right;">{html.escape(cell_str)}</div>'
         df["URL"] = df["URL"].apply(clickable_url)
 
-    # 数値列には wrap_cell_numeric, 文字列列には wrap_cell_text
     for col in df.columns:
-        # すでに "URL" を処理しているので除外
-        if col == "URL":
-            continue
-        # もとの df に対応する列名は HTML変換前のカラム名
-        # 今の df.columns は後で差し替えるので numeric_cols との突合が困るため、
-        # numeric_cols の元のカラム名を使って判定する必要がある。
-        original_col_name = col.replace('<div class="header-content">','').replace('</div>','')
+        if col != "URL":
+            df[col] = df[col].apply(wrap_cell)
 
-        if original_col_name in numeric_cols:
-            df[col] = df[col].apply(wrap_cell_numeric)
-        else:
-            df[col] = df[col].apply(wrap_cell_text)
-
-    # ヘッダテキストを <div> でラップ（見た目のため）
     new_cols = []
     for c in df.columns:
-        c_stripped = c.replace('<div class="header-content">','').replace('</div>','')
-        c_esc = html.escape(c_stripped)
+        c_esc = html.escape(c)
         new_cols.append(f'<div class="header-content">{c_esc}</div>')
     df.columns = new_cols
 
     # -------------------------------
-    # 8) HTMLテーブルに変換して表示
+    # 8) HTMLテーブルに変換して表示（sortable クラスを追加）
     # -------------------------------
     html_table = df.to_html(
         escape=False,
         index=False,
-        classes=["customtable", "sortable"]  # sorttable.js でソート可能
+        classes=["customtable", "sortable"]  # ← ここが重要
     )
     st.write(html_table, unsafe_allow_html=True)
 
