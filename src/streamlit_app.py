@@ -197,10 +197,10 @@ def show_sheet1():
     # -------------------------------
     # 7) 表示用: セル横スクロール対応
     # -------------------------------
-    def wrap_cell_numeric(val):
-    s = str(val)
-    s_esc = html.escape(s)
-    return f'<td class="sorttable_numeric"><div class="cell-content">{s_esc}</div></td>'
+    def wrap_cell(val):
+        s = str(val)
+        s_esc = html.escape(s)
+        return f'<div class="cell-content">{s_esc}</div>'
 
     if "URL" in df.columns:
         def clickable_url(cell):
@@ -352,3 +352,4 @@ def streamlit_main():
 
 if __name__ == "__main__":
     streamlit_main()
+    
