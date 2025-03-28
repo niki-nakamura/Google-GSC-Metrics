@@ -184,7 +184,7 @@ def show_sheet1():
             return score
 
         # (4) Rewrite Priority Score 計算・ソート
-        df["rewrite_priority"] = df.apply(calc_rp, axis=1)
+        df["rewrite_priority"] = df.apply(calc_rp, axis=1).round(1) 
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
     # -------------------------------
