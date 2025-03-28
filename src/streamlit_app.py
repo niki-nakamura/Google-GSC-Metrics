@@ -16,7 +16,7 @@ def load_data() -> pd.DataFrame:
     except:
         return pd.DataFrame()
 
-def show_top_pages():
+def show_sheet1():  # ← ここを show_sheet1 に
     """
     Ahrefsの「上位ページ」表を模した形で、
     ユーザーが用意した全ての指標をテーブル表示する。
@@ -87,7 +87,7 @@ def show_top_pages():
         return
 
     # -------------------------------
-    # 3) 今回表示したい列の順序を定義
+    # 3) 表示したい列を定義
     # -------------------------------
     desired_cols = [
         "SEO対策KW", "30日間平均順位", "7日間平均順位", "比較（7日間が良ければ＋）",
@@ -106,18 +106,17 @@ def show_top_pages():
         "cvr_7d_1", "cvr_30d", "cvr_90d", "cvr_180d",
         "growth_rate_7d", "Top 7-day Keywords", "Top 30-day Keywords"
     ]
-    # データフレームに存在する列だけを抽出
     existing_cols = [c for c in desired_cols if c in df.columns]
     df = df[existing_cols]
 
     # -------------------------------
-    # 4) 数値列の小数点丸めなどの簡単な処理
+    # 4) 数値列の丸め
     # -------------------------------
     numeric_cols = df.select_dtypes(include=["float","int"]).columns
     df[numeric_cols] = df[numeric_cols].round(1)
 
     # -------------------------------
-    # 5) URL列をクリッカブルに
+    # 5) URLをクリッカブル化
     # -------------------------------
     if "URL" in df.columns:
         def clickable_url(cell):
@@ -130,7 +129,7 @@ def show_top_pages():
         df["URL"] = df["URL"].apply(clickable_url)
 
     # -------------------------------
-    # 6) 他のセルもスクロール可能なようにラップ
+    # 6) それ以外のセルもスクロール可能に
     # -------------------------------
     def wrap_cell(val):
         s = str(val)
@@ -138,7 +137,7 @@ def show_top_pages():
         return f'<div class="cell-content">{s_esc}</div>'
 
     for col in df.columns:
-        # URL 以外は通常のセル処理
+        # すでにURLカラムは整形済みなので、それ以外はラップ
         if "<a href=" not in df[col].astype(str).values[0]:
             df[col] = df[col].apply(wrap_cell)
 
@@ -152,12 +151,12 @@ def show_top_pages():
     df.columns = new_cols
 
     # -------------------------------
-    # 8) HTMLテーブル化 (sortable クラス付与) して表示
+    # 8) HTMLテーブル化 (sortable クラス付与)
     # -------------------------------
     html_table = df.to_html(
         escape=False,
         index=False,
-        classes=["customtable", "sortable"]  # ← 列見出しクリックでソート可
+        classes=["customtable", "sortable"]
     )
     st.write(html_table, unsafe_allow_html=True)
 
