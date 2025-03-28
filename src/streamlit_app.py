@@ -27,10 +27,13 @@ def show_sheet1():
     """
 
     # -------------------------------
-    # 1) CSSや前準備部分（テーブルのカスタムCSS）
+    # 1) CSSや前準備部分（テーブルのカスタムCSS + sorttable.js）
     # -------------------------------
     st.markdown(
         """
+        <!-- sorttable.js (列ヘッダクリックでソート可能にする) -->
+        <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
+        
         <style>
         /* テーブル全体のデザイン */
         table.customtable {
@@ -67,6 +70,10 @@ def show_sheet1():
             max-width: 150px;
             white-space: nowrap;
             overflow-x: auto;
+        }
+        /* ソートできるテーブルのヘッダにはカーソルを指マークに */
+        table.sortable thead {
+            cursor: pointer;
         }
         </style>
         """,
@@ -184,7 +191,7 @@ def show_sheet1():
             return score
 
         # (4) Rewrite Priority Score 計算・ソート
-        df["rewrite_priority"] = df.apply(calc_rp, axis=1).round(1) 
+        df["rewrite_priority"] = df.apply(calc_rp, axis=1).round(1)
         df.sort_values("rewrite_priority", ascending=False, inplace=True)
 
     # -------------------------------
@@ -216,12 +223,12 @@ def show_sheet1():
     df.columns = new_cols
 
     # -------------------------------
-    # 8) HTMLテーブルに変換して表示
+    # 8) HTMLテーブルに変換して表示（sortable クラスを追加）
     # -------------------------------
     html_table = df.to_html(
         escape=False,
         index=False,
-        classes=["customtable"]
+        classes=["customtable", "sortable"]  # ← ここが重要
     )
     st.write(html_table, unsafe_allow_html=True)
 
