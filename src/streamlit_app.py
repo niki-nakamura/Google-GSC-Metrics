@@ -4,7 +4,6 @@ import numpy as np
 import html
 from data_fetcher import main_fetch_all
 
-def load_data() -> pd.DataFrame:
 # ページ全体を横幅を広めに使う設定
 st.set_page_config(layout="wide")
 
