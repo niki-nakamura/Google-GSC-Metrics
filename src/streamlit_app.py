@@ -9,41 +9,34 @@ st.set_page_config(layout="wide")
 def load_data() -> pd.DataFrame:
     """
     sheet_query_data.csv を読み込み、失敗したら空DataFrameを返す。
-    （カラム定義はご提示いただいた通り多数あるが、
-     本スクリプトではうち必要な分だけリネーム・表示を実施）
     """
     try:
         return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
     except:
         return pd.DataFrame()
 
-def show_ahrefs_top_pages():
+def show_sheet1():
     """
-    Ahrefs「上位ページ」風に、
+    Ahrefs「上位ページ」風に表示する関数。
     - URL
-    - SEOタイトル
-    - トラフィック (7日)
-    - 変更 (7日 vs 30日)
+    - SEOタイトル (post_title)
+    - トラフィック (page_view_7d)
+    - 変更 (traffic_change_7d_vs_30d)
     - 値 (sales_7d)
     - 変更 (sales_7d vs sales_30d)
     - トップキーワード (SEO対策KW)
     - 順位 (7日間平均順位)
-    を表示する。
 
-    その他のカラムはすべて右側に表示し、
-    CSSなどでAhrefs風に美しく整形する。
+    そのほかのカラムは右側へ置く。
     """
 
     # --------------------------------------------------
-    # 1) 事前CSS + sorttable.js (クリックでソート機能)
+    # 1) CSS + sorttable.js
     # --------------------------------------------------
     st.markdown(
         """
-        <!-- 列見出しクリックでソートを実現するスクリプト -->
         <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
-
         <style>
-        /* Ahrefsっぽいテーブルデザイン */
         table.ahrefs-table {
             border-collapse: separate;
             border-spacing: 0;
@@ -64,7 +57,6 @@ def show_ahrefs_top_pages():
             border-bottom: 1px solid #ddd;
             white-space: nowrap;
         }
-        /* 角丸 */
         table.ahrefs-table thead tr:first-child th:first-child {
             border-top-left-radius: 6px;
         }
@@ -87,25 +79,21 @@ def show_ahrefs_top_pages():
         table.ahrefs-table tbody tr:hover {
             background-color: #fafafa;
         }
-        /* ソートカーソル */
         table.sortable thead {
             cursor: pointer;
         }
-        /* ヘッダーを横スクロール可能に */
         table.ahrefs-table thead th .header-content {
             display: inline-block;
             max-width: 120px;
             white-space: nowrap;
             overflow-x: auto;
         }
-        /* セルの横スクロール */
         table.ahrefs-table td .cell-content {
             display: inline-block;
             max-width: 150px;
             white-space: nowrap;
             overflow-x: auto;
         }
-        /* プラス・マイナス値の色付け */
         .pos-change { color: green; }
         .neg-change { color: red; }
         </style>
@@ -115,25 +103,17 @@ def show_ahrefs_top_pages():
 
     st.subheader("Ahrefs風 上位ページ")
 
-    # --------------------------------------
+    # --------------------------------------------------
     # 2) CSV読み込み
-    # --------------------------------------
+    # --------------------------------------------------
     df = load_data()
     if df.empty:
-        st.warning("CSVが空、またはデータがありません。")
+        st.warning("CSVが空、またはまだデータがありません。")
         return
 
-    # --------------------------------------
-    # 3) 必要な列をリネームして対応付け
-    # ご提示のカラム定義に基づき:
-    #  - SEO対策KW           => keyword_top
-    #  - 7日間平均順位       => rank_7d
-    #  - sales_7d, sales_30d => (そのまま)
-    #  - sales_change_7d_vs_30d => sales_change
-    #  - page_view_7d        => traffic_7d
-    #  - traffic_change_7d_vs_30d => traffic_change
-    #  - post_title          => seo_title
-    #  - URL                 => URL (そのまま)
+    # --------------------------------------------------
+    # 3) カラム名のリネーム
+    # --------------------------------------------------
     rename_map = {
         "SEO対策KW": "keyword_top",
         "7日間平均順位": "rank_7d",
@@ -149,45 +129,36 @@ def show_ahrefs_top_pages():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
-    # --------------------------------------
-    # 4) URLカラムをクリック可能に（すでにURLという列がある前提）
-    # --------------------------------------
+    # --------------------------------------------------
+    # 4) URLをクリック可能に
+    # --------------------------------------------------
     if "URL" in df.columns:
         def make_clickable(u):
             esc = html.escape(str(u))
             return f'<div class="cell-content"><a href="{esc}" target="_blank">{esc}</a></div>'
         df["URL"] = df["URL"].apply(make_clickable)
 
-    # --------------------------------------
-    # 5) Ahrefs風に表示したい列を順に並べる
-    #  - URL
-    #  - seo_title (SEOタイトル)
-    #  - traffic_7d (トラフィック)
-    #  - traffic_change (変更)
-    #  - sales_7d (値)
-    #  - sales_change (変更(sales))
-    #  - keyword_top (トップキーワード)
-    #  - rank_7d (順位)
-    # その他は右側に置く
-    # --------------------------------------
+    # --------------------------------------------------
+    # 5) 表示順を Ahrefs 風に
+    # --------------------------------------------------
     desired_cols = [
         "URL",
         "seo_title",
-        "traffic_7d",      # page_view_7d
-        "traffic_change",  # traffic_change_7d_vs_30d
+        "traffic_7d",
+        "traffic_change",
         "sales_7d",
-        "sales_change",    # sales_change_7d_vs_30d
-        "keyword_top",     # SEO対策KW
-        "rank_7d"          # 7日間平均順位
+        "sales_change",
+        "keyword_top",
+        "rank_7d"
     ]
     exist_cols = [c for c in desired_cols if c in df.columns]
     others = [c for c in df.columns if c not in exist_cols]
     final_cols = exist_cols + others
     df = df[final_cols]
 
-    # --------------------------------------
-    # 6) トラフィック変更やSales変更などのプラス/マイナス値に色付け
-    # --------------------------------------
+    # --------------------------------------------------
+    # 6) プラス・マイナス値の色付け
+    # --------------------------------------------------
     def color_change(val):
         s = str(val)
         try:
@@ -201,34 +172,33 @@ def show_ahrefs_top_pages():
         except:
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
-    for ch_col in ["traffic_change", "sales_change"]:
-        if ch_col in df.columns:
-            df[ch_col] = df[ch_col].apply(color_change)
+    for colnm in ["traffic_change", "sales_change"]:
+        if colnm in df.columns:
+            df[colnm] = df[colnm].apply(color_change)
 
-    # --------------------------------------
-    # 7) 他の列を「スクロール対応」HTML化
-    #    URL と変更系カラムは上で個別対応済み
-    # --------------------------------------
-    def wrap_cell(cellval):
-        return f'<div class="cell-content">{html.escape(str(cellval))}</div>'
+    # --------------------------------------------------
+    # 7) 他の列をスクロール対応HTML化
+    # --------------------------------------------------
+    def wrap_cell(v):
+        return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
     for c in df.columns:
-        # 変更系カラム, URL はすでに整形済み
-        if ("traffic_change" not in c) and ("sales_change" not in c) and (c != "URL"):
+        if (c not in ["URL","traffic_change","sales_change"]) and (c in df.columns):
             df[c] = df[c].apply(wrap_cell)
 
-    # --------------------------------------
-    # 8) ヘッダを <div class="header-content"> でラップし、sorttable も効かせる
-    # --------------------------------------
+    # --------------------------------------------------
+    # 8) ヘッダを <div class=\"header-content\"> でラップ
+    # --------------------------------------------------
     new_headers = []
     for col in df.columns:
+        # 既に <div class=\"cell-content\"> が入ってしまっている場合は削除
         text = col.replace('<div class=\"cell-content\">','').replace('</div>','')
         new_headers.append(f'<div class="header-content">{html.escape(text)}</div>')
     df.columns = new_headers
 
-    # --------------------------------------
+    # --------------------------------------------------
     # 9) HTMLテーブル化して表示
-    # --------------------------------------
+    # --------------------------------------------------
     html_table = df.to_html(
         index=False,
         escape=False,
@@ -350,6 +320,7 @@ def show_sheet2():
 def streamlit_main():
     tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
     with tab1:
+        # ここで show_sheet1() を呼ぶように
         show_sheet1()
     with tab2:
         show_sheet2()
