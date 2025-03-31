@@ -27,7 +27,7 @@ def show_sheet1():
     - トップキーワード (SEO対策KW)
     - 順位 (7日間平均順位)
 
-    そのほかのカラムは右側へ置く。
+    それ以外、特に ONTENT_TYPE 以降の列は非表示。
     """
 
     # --------------------------------------------------
@@ -35,6 +35,7 @@ def show_sheet1():
     # --------------------------------------------------
     st.markdown(
         """
+        <!-- 列見出しクリックソート用 -->
         <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
         <style>
         table.ahrefs-table {
@@ -112,8 +113,31 @@ def show_sheet1():
         return
 
     # --------------------------------------------------
-    # 3) カラム名のリネーム
+    # 3) ONTENT_TYPE以降のカラムを削除（ただし指定カラムは除外）
     # --------------------------------------------------
+
+    # CSV内の全カラム一覧
+    all_cols = list(df.columns)
+    # ONTENT_TYPE の位置を取得（なければ末尾扱い）
+    if "ONTENT_TYPE" in df.columns:
+        idx_ont = df.columns.get_loc("ONTENT_TYPE")
+    else:
+        idx_ont = len(df.columns)  # 存在しなければ実質何もしない
+
+    # 今回使う予定の(元の)カラム
+    needed_original_cols = [
+        "URL",  # リンク表示
+        "post_title",  # SEOタイトル
+        "page_view_7d",  # トラフィック
+        "traffic_change_7d_vs_30d",  # 変更(トラフィック)
+        "sales_7d",  # 値
+        "sales_30d", # sales_30d(内部計算等で使うかもしれない)
+        "sales_change_7d_vs_30d", # 変更(売上)
+        "SEO対策KW", # トップキーワード
+        "7日間平均順位"  # 順位
+    ]
+
+    # これらを Ahrefs風にリネームする辞書
     rename_map = {
         "SEO対策KW": "keyword_top",
         "7日間平均順位": "rank_7d",
@@ -125,12 +149,31 @@ def show_sheet1():
         "post_title": "seo_title",
         # URL はそのまま
     }
+
+    # 1) リネームを適用
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
+    # 2) ONTENT_TYPE 以降のカラムを非表示にする
+    #    ただし needed_original_cols or rename_mapで使うカラムだけは保護する
+    #    (リネーム後のカラム名をkeepしないといけないので set化)
+    keep_colnames = set(needed_original_cols + list(rename_map.values()))
+    keep_colnames.add("URL")  # URLは残す(リネームしないので)
+    
+    current_cols = list(df.columns)  # リネーム後のdfカラム
+    drop_list = []
+    if idx_ont < len(current_cols):
+        # ONTENT_TYPE含む、右側の列を候補に(= i in [idx_ont, len(current_cols)) )
+        for i in range(idx_ont, len(current_cols)):
+            colname = current_cols[i]
+            if colname not in keep_colnames:
+                drop_list.append(colname)
+    
+    df.drop(columns=drop_list, inplace=True, errors="ignore")
+
     # --------------------------------------------------
-    # 4) URLをクリック可能に
+    # 4) URL をクリック可能に
     # --------------------------------------------------
     if "URL" in df.columns:
         def make_clickable(u):
@@ -139,9 +182,10 @@ def show_sheet1():
         df["URL"] = df["URL"].apply(make_clickable)
 
     # --------------------------------------------------
-    # 5) 表示順を Ahrefs 風に
+    # 5) 表示順を Ahrefs風に固定
     # --------------------------------------------------
-    desired_cols = [
+    # rename後の列で並べる
+    desired_new_cols = [
         "URL",
         "seo_title",
         "traffic_7d",
@@ -151,13 +195,14 @@ def show_sheet1():
         "keyword_top",
         "rank_7d"
     ]
-    exist_cols = [c for c in desired_cols if c in df.columns]
-    others = [c for c in df.columns if c not in exist_cols]
-    final_cols = exist_cols + others
+    existing_new = [c for c in desired_new_cols if c in df.columns]
+    # そのほかは後ろに
+    others_new = [c for c in df.columns if c not in existing_new]
+    final_cols = existing_new + others_new
     df = df[final_cols]
 
     # --------------------------------------------------
-    # 6) プラス・マイナス値の色付け
+    # 6) プラス・マイナス値の色付け(トラフィック変更・売上変更)
     # --------------------------------------------------
     def color_change(val):
         s = str(val)
@@ -172,27 +217,26 @@ def show_sheet1():
         except:
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
-    for colnm in ["traffic_change", "sales_change"]:
-        if colnm in df.columns:
-            df[colnm] = df[colnm].apply(color_change)
+    for c in ["traffic_change", "sales_change"]:
+        if c in df.columns:
+            df[c] = df[c].apply(color_change)
 
     # --------------------------------------------------
-    # 7) 他の列をスクロール対応HTML化
+    # 7) 残りの列をスクロール対応HTML化
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
-    for c in df.columns:
-        if (c not in ["URL","traffic_change","sales_change"]) and (c in df.columns):
-            df[c] = df[c].apply(wrap_cell)
+    for col in df.columns:
+        if (col not in ["URL", "traffic_change", "sales_change"]) and (col in df.columns):
+            df[col] = df[col].apply(wrap_cell)
 
     # --------------------------------------------------
-    # 8) ヘッダを <div class=\"header-content\"> でラップ
+    # 8) ヘッダを <div class="header-content"> でラップ
     # --------------------------------------------------
     new_headers = []
     for col in df.columns:
-        # 既に <div class=\"cell-content\"> が入ってしまっている場合は削除
-        text = col.replace('<div class=\"cell-content\">','').replace('</div>','')
+        text = col.replace('<div class="cell-content">','').replace('</div>','')
         new_headers.append(f'<div class="header-content">{html.escape(text)}</div>')
     df.columns = new_headers
 
