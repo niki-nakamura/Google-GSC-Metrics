@@ -16,6 +16,20 @@ def load_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 def show_sheet1():
+    """
+    ユーザー指定の9列のみを表示:
+    1. URL (seo_title + クリックリンク)
+    2. traffic_7d
+    3. traffic_change
+    4. sales_7d
+    5. sales_change
+    6. keyword_top (SEO対策KW)
+    7. rank_7d  (7日間平均順位)
+    8. 30日間平均順位 (そのまま)
+    9. 比較（7日間が良ければ＋）
+
+    その他のカラムはすべて非表示。
+    """
 
     # --------------------------------------------------
     # 1) CSS + sorttable.js
@@ -78,7 +92,7 @@ def show_sheet1():
         }
         table.ahrefs-table td .cell-content {
             display: inline-block;
-            max-width: 220px; /* 少し広めに */
+            max-width: 220px;
             white-space: nowrap;
             overflow-x: auto;
         }
@@ -100,65 +114,64 @@ def show_sheet1():
         return
 
     # --------------------------------------------------
-    # 3) カラム名のリネーム
-    #    (例として、post_title → seo_title, etc.)
+    # 3) カラム名リネーム (必要なものだけ)
     # --------------------------------------------------
     rename_map = {
         "SEO対策KW": "keyword_top",
         "7日間平均順位": "rank_7d",
-        "sales_7d": "sales_7d",
-        "sales_30d": "sales_30d",
-        "sales_change_7d_vs_30d": "sales_change",
         "page_view_7d": "traffic_7d",
         "traffic_change_7d_vs_30d": "traffic_change",
-        "post_title": "seo_title",
+        "sales_7d": "sales_7d",
+        "sales_change_7d_vs_30d": "sales_change",
+        "post_title": "seo_title"
         # URL はそのまま
+        # 30日間平均順位 はそのまま
+        # 比較（7日間が良ければ＋） はそのまま
     }
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
     # --------------------------------------------------
-    # 4) URL列: seo_title + クリック可能URLをまとめる
-    #    例:
-    #      【安心安全】お小遣い稼ぎにも！2025年版おすすめポイ活アプリ
-    #      https://good-apps.jp/media/column/xxxx
+    # 4) URL列に seo_title を含める (タイトル + 改行 + リンク)
     # --------------------------------------------------
     if "URL" in df.columns and "seo_title" in df.columns:
-        def make_title_and_url(row):
+        def combine_title_url(row):
             title_esc = html.escape(str(row["seo_title"]))
             url_esc = html.escape(str(row["URL"]))
             return (
                 f'<div class="cell-content">'
-                f'{title_esc}<br/>'  # タイトルの後に改行
+                f'{title_esc}<br/>'
                 f'<a href="{url_esc}" target="_blank">{url_esc}</a>'
                 f'</div>'
             )
-        df["URL"] = df.apply(make_title_and_url, axis=1)
-        # seo_title のカラムはURLに含めたので非表示にする
+        df["URL"] = df.apply(combine_title_url, axis=1)
+        # もはや seo_title 列は不要
         df.drop(columns=["seo_title"], inplace=True)
 
     # --------------------------------------------------
-    # 5) 表示順を Ahrefs 風に(例: URL, traffic_7d, traffic_change, sales_7d...)
+    # 5) 今回表示する9列のみを残す
     # --------------------------------------------------
-    desired_cols = [
-        "URL",            # ← ここに (seo_title + URL)
+    final_cols = [
+        "URL",
         "traffic_7d",
         "traffic_change",
         "sales_7d",
         "sales_change",
         "keyword_top",
         "rank_7d",
+        "30日間平均順位",
+        "比較（7日間が良ければ＋）"
     ]
-    exist_cols = [c for c in desired_cols if c in df.columns]
-    others = [c for c in df.columns if c not in exist_cols]
-    final_cols = exist_cols + others
-    df = df[final_cols]
+
+    # df の中に存在しない列があるかもしれないので、あるものだけ確保
+    exist_cols = [c for c in final_cols if c in df.columns]
+    df = df[exist_cols]  # これ以外のカラムは非表示
 
     # --------------------------------------------------
-    # 6) 増減(±)の色付け
+    # 6) traffic_change, sales_change のみ増減色付け
     # --------------------------------------------------
-    def color_change(val):
+    def color_plusminus(val):
         s = str(val)
         try:
             x = float(val)
@@ -171,31 +184,31 @@ def show_sheet1():
         except:
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
-    for ch_col in ["traffic_change", "sales_change"]:
-        if ch_col in df.columns:
-            df[ch_col] = df[ch_col].apply(color_change)
+    for c in ["traffic_change", "sales_change"]:
+        if c in df.columns:
+            df[c] = df[c].apply(color_plusminus)
 
     # --------------------------------------------------
-    # 7) 他の列は通常スクロール対応HTML化
+    # 7) 残りの列をHTML化 (スクロール対応)
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
-    for c in df.columns:
-        if c not in ["URL","traffic_change","sales_change"]:
-            df[c] = df[c].apply(wrap_cell)
+    for col in df.columns:
+        if col not in ["traffic_change", "sales_change", "URL"]:
+            df[col] = df[col].apply(wrap_cell)
 
     # --------------------------------------------------
     # 8) ヘッダを <div class="header-content"> でラップ
     # --------------------------------------------------
     new_headers = []
     for col in df.columns:
-        text = col.replace('<div class="cell-content">','').replace('</div>','')
-        new_headers.append(f'<div class="header-content">{html.escape(text)}</div>')
+        stripped = col.replace('<div class="cell-content">','').replace('</div>','')
+        new_headers.append(f'<div class="header-content">{html.escape(stripped)}</div>')
     df.columns = new_headers
 
     # --------------------------------------------------
-    # 9) HTMLテーブル化して表示
+    # 9) HTMLテーブル化し表示
     # --------------------------------------------------
     html_table = df.to_html(
         index=False,
@@ -203,28 +216,6 @@ def show_sheet1():
         classes=["ahrefs-table","sortable"]
     )
     st.write(html_table, unsafe_allow_html=True)
-
-###################################
-# (Hidden) README doc
-###################################
-README_TEXT = """\
-(ここにREADMEの内容)
-"""
-
-def show_sheet2():
-    st.title("README:")
-    st.markdown(README_TEXT)
-
-def streamlit_main():
-    tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
-    with tab1:
-        show_sheet1()
-    with tab2:
-        show_sheet2()
-
-if __name__ == "__main__":
-    streamlit_main()
-
 
 ###################################
 # (Hidden) README doc
