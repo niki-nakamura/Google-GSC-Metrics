@@ -92,7 +92,6 @@ def show_sheet1():
         }
         table.ahrefs-table td .cell-content {
             display: inline-block;
-            max-width: 220px;
             white-space: nowrap;
             overflow-x: auto;
         }
