@@ -359,7 +359,6 @@ def show_sheet2():
 def streamlit_main():
     tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
     with tab1:
-        # ここで show_sheet1() を呼ぶように
         show_sheet1()
     with tab2:
         show_sheet2()
