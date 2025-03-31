@@ -118,12 +118,12 @@ def show_sheet1():
     # 3) カラム名リネーム (必要なものだけ)
     # --------------------------------------------------
     rename_map = {
-        "SEO対策KW": "keyword_top",
-        "7日間平均順位": "rank_7d",
-        "page_view_7d": "traffic_7d",
-        "traffic_change_7d_vs_30d": "traffic_change",
-        "sales_7d": "sales_7d",
-        "sales_change_7d_vs_30d": "sales_change",
+        "SEO対策KW": "トップキーワード",
+        "7日間平均順位": "順位",
+        "session": "トラフィック",
+        "traffic_change_7d_vs_30d": "変更",
+        "sales_7d": "売上",
+        "sales_change_7d_vs_30d": "変更",
         "post_title": "seo_title"
         # URL はそのまま
         # 30日間平均順位 はそのまま
