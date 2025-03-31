@@ -17,18 +17,18 @@ def load_data() -> pd.DataFrame:
 
 def show_sheet1():
     """
-    ユーザー指定の9列のみを表示:
-    1. URL (seo_title + クリックリンク)
-    2. traffic_7d
-    3. traffic_change
-    4. sales_7d
-    5. sales_change
-    6. keyword_top (SEO対策KW)
-    7. rank_7d  (7日間平均順位)
-    8. 30日間平均順位 (そのまま)
-    9. 比較（7日間が良ければ＋）
+    指定されたリネームマップに従い、以下のカラムを表示:
+      1. URL (seo_title + クリックリンク)
+      2. トラフィック (session)
+      3. 変更 (traffic_change_7d_vs_30d)
+      4. 売上 (sales_7d)
+      5. 変更 (sales_change_7d_vs_30d)
+      6. トップキーワード (SEO対策KW)
+      7. 順位 (7日間平均順位)
+      8. 30日間平均順位
+      9. 比較（7日間が良ければ＋）
 
-    その他のカラムはすべて非表示。
+    その他は非表示とする。
     """
 
     # --------------------------------------------------
@@ -36,8 +36,9 @@ def show_sheet1():
     # --------------------------------------------------
     st.markdown(
         """
-        <!-- 列見出しクリックソート用 -->
+        <!-- sorttable.js (クリックソート) -->
         <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
+        
         <style>
         table.ahrefs-table {
             border-collapse: separate;
@@ -74,9 +75,11 @@ def show_sheet1():
         table.ahrefs-table tbody tr td {
             padding: 6px 8px;
             border-bottom: 1px solid #ddd;
-            white-space: nowrap;
             vertical-align: middle;
-            transition: background-color 0.3s;
+            /* 折り返し表示に変更 */
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
         table.ahrefs-table tbody tr:hover {
             background-color: #fafafa;
@@ -84,19 +87,18 @@ def show_sheet1():
         table.sortable thead {
             cursor: pointer;
         }
+        /* ヘッダのスクロール対応(場合による) */
         table.ahrefs-table thead th .header-content {
             display: inline-block;
             max-width: 120px;
-            white-space: nowrap;
             overflow-x: auto;
         }
+        /* セルの幅上限は任意に変更可能 */
         table.ahrefs-table td .cell-content {
             display: inline-block;
-            max-width: 220px;
-            white-space: normal;        /* 改行を許可 */
-            word-wrap: break-word;      /* 単語途中でも折り返し可 */
-            overflow-wrap: break-word;  /* 同上 (一部ブラウザ用) */
-            }
+            max-width: 400px; /* 必要に応じて変更 */
+            word-wrap: break-word;
+        }
         .pos-change { color: green; }
         .neg-change { color: red; }
         </style>
@@ -107,7 +109,7 @@ def show_sheet1():
     st.subheader("上位ページ")
 
     # --------------------------------------------------
-    # 2) CSV読み込み
+    # 2) CSV 読み込み
     # --------------------------------------------------
     df = load_data()
     if df.empty:
@@ -115,26 +117,35 @@ def show_sheet1():
         return
 
     # --------------------------------------------------
-    # 3) カラム名リネーム (必要なものだけ)
+    # 3) ユーザー指定のリネームマップ
+    #    - SEO対策KW        => トップキーワード
+    #    - 7日間平均順位     => 順位
+    #    - session          => トラフィック
+    #    - traffic_change_7d_vs_30d => 変更
+    #    - sales_7d        => 売上
+    #    - sales_change_7d_vs_30d => 変更
+    #    - post_title      => seo_title
+    #    - URL / 30日間平均順位 / 比較（7日間が良ければ＋） は無変換
+    # 
+    # 注意: traffic_change_7d_vs_30d, sales_change_7d_vs_30d が両方 "変更" になるため
+    #       列名衝突に気をつける(最終的にDataFrame上は同名になるが、HTML化時に順序がずれないよう管理)
     # --------------------------------------------------
     rename_map = {
         "SEO対策KW": "トップキーワード",
         "7日間平均順位": "順位",
         "session": "トラフィック",
-        "traffic_change_7d_vs_30d": "変更",
+        "traffic_change_7d_vs_30d": "変更",  # 1つ目の「変更」
         "sales_7d": "売上",
-        "sales_change_7d_vs_30d": "変更",
+        "sales_change_7d_vs_30d": "変更",  # 2つ目の「変更」
         "post_title": "seo_title"
-        # URL はそのまま
-        # 30日間平均順位 はそのまま
-        # 比較（7日間が良ければ＋） はそのまま
     }
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
     # --------------------------------------------------
-    # 4) URL列に seo_title を含める (タイトル + 改行 + リンク)
+    # 4) URL列に seo_title を含める (タイトル + 改行 + クリックURL)
+    #    - rename後にseo_title列が存在すれば結合する
     # --------------------------------------------------
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
@@ -147,30 +158,52 @@ def show_sheet1():
                 f'</div>'
             )
         df["URL"] = df.apply(combine_title_url, axis=1)
-        # もはや seo_title 列は不要
+        # seo_title列はもう不要
         df.drop(columns=["seo_title"], inplace=True)
 
     # --------------------------------------------------
-    # 5) 今回表示する9列のみを残す
+    # 5) 最終的に表示する9列
+    #    1) URL
+    #    2) トラフィック (rename後)
+    #    3) 変更(traffic) 
+    #    4) 売上
+    #    5) 変更(sales)
+    #    6) トップキーワード
+    #    7) 順位
+    #    8) 30日間平均順位 (変換せず)
+    #    9) 比較（7日間が良ければ＋） (変換せず)
     # --------------------------------------------------
     final_cols = [
         "URL",
-        "traffic_7d",
-        "traffic_change",
-        "sales_7d",
-        "sales_change",
-        "keyword_top",
-        "rank_7d",
+        "トラフィック",
+        "変更",  # これが traffic_change になる
+        "売上",
+        "変更",  # これが sales_change になる(衝突のため同名2列)
+        "トップキーワード",
+        "順位",
         "30日間平均順位",
         "比較（7日間が良ければ＋）"
     ]
-
-    # df の中に存在しない列があるかもしれないので、あるものだけ確保
+    # CSVの都合で存在しない列もあるかもしれないので、あるものだけ残す
     exist_cols = [c for c in final_cols if c in df.columns]
-    df = df[exist_cols]  # これ以外のカラムは非表示
+    df = df[exist_cols]
+
+    # 
+    # ここで、traffic_change と sales_change は両方リネーム "変更" になり
+    # 同じ列名が2つできるので、DataFrame的には [変更, 変更]. 
+    # Pandasは重複カラム名をサフィックスで区別する場合あり。→ 後段でHTML化するのでOK
+    #
 
     # --------------------------------------------------
-    # 6) traffic_change, sales_change のみ増減色付け
+    # 6) 増減(±)の色付け
+    #    * 2つの「変更」列を区別する必要がある → DataFrame内部カラム
+    #      rename前には traffic_change_7d_vs_30d / sales_change_7d_vs_30d でしたが
+    #      rename後には同名になっている
+    # 
+    #    アプローチ: renameせず一旦2つの別カラムにして、HTML化後に表示名を同じにするか、
+    #    あるいはpandas上は衝突してもHTML化で順序保持して表示する
+    # 
+    # ここでは順序保持を前提に df.columns の順序でcolorize します
     # --------------------------------------------------
     def color_plusminus(val):
         s = str(val)
@@ -185,36 +218,42 @@ def show_sheet1():
         except:
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
-    for c in ["traffic_change", "sales_change"]:
-        if c in df.columns:
-            df[c] = df[c].apply(color_plusminus)
+    # すでに両方が "変更" カラム名の場合: 
+    # df.columns の中で "変更" が出現する列を順番に探し、colorizeする
+    ch_indices = [i for i, coln in enumerate(df.columns) if coln == "変更"]
+    for idx in ch_indices:
+        df.iloc[:, idx] = df.iloc[:, idx].apply(color_plusminus)
 
     # --------------------------------------------------
-    # 7) 残りの列をHTML化 (スクロール対応)
+    # 7) 残りの列をHTML化 (スクロール対応 & 折り返し)
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
-    for col in df.columns:
-        if col not in ["traffic_change", "sales_change", "URL"]:
-            df[col] = df[col].apply(wrap_cell)
+    # URL はもうHTML化済み, 変更 はcolor_plusminus済み
+    skip_cols = set(["URL", "変更"])
+    for i, coln in enumerate(df.columns):
+        if coln not in skip_cols:
+            df.iloc[:, i] = df.iloc[:, i].apply(wrap_cell)
 
     # --------------------------------------------------
     # 8) ヘッダを <div class="header-content"> でラップ
+    #    (重複カラム名「変更」をあえてそのまま2つ表示する)
     # --------------------------------------------------
     new_headers = []
     for col in df.columns:
+        # 既に <div class="cell-content"> が入ってしまっている場合は除去
         stripped = col.replace('<div class="cell-content">','').replace('</div>','')
         new_headers.append(f'<div class="header-content">{html.escape(stripped)}</div>')
     df.columns = new_headers
 
     # --------------------------------------------------
-    # 9) HTMLテーブル化し表示
+    # 9) HTMLテーブル化して表示
     # --------------------------------------------------
     html_table = df.to_html(
         index=False,
         escape=False,
-        classes=["ahrefs-table","sortable"]
+        classes=["ahrefs-table", "sortable"]
     )
     st.write(html_table, unsafe_allow_html=True)
 
