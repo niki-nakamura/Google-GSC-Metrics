@@ -92,9 +92,11 @@ def show_sheet1():
         }
         table.ahrefs-table td .cell-content {
             display: inline-block;
-            white-space: nowrap;
-            overflow-x: auto;
-        }
+            max-width: 220px;
+            white-space: normal;        /* 改行を許可 */
+            word-wrap: break-word;      /* 単語途中でも折り返し可 */
+            overflow-wrap: break-word;  /* 同上 (一部ブラウザ用) */
+            }
         .pos-change { color: green; }
         .neg-change { color: red; }
         </style>
