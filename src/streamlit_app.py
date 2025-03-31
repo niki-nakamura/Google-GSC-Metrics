@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -30,9 +31,9 @@ def show_sheet1():
       10. 順位（30日） (30日間平均順位)
       11. 比較 (CSV上は「比較（7日間が良ければ＋）」)
 
-    変更点:
-      - 「変更(売上)」に +/− 色付けを追加
-      - 「比較（7日間が良ければ＋）」 → 「比較」にリネームし、+/− 色付けを適用
+    修正ポイント:
+      - 「変更(売上)」で「¥ -894」「¥ 99.5」などの文字列でも ±色分けが可能に。
+      - 「比較（7日間が良ければ＋）」 を 「比較」にリネーム後、±色付けを行う。
     """
 
     # --------------------------------------------------
@@ -40,7 +41,7 @@ def show_sheet1():
     # --------------------------------------------------
     st.markdown(
         """
-        <!-- 列見出しクリックソート -->
+        <!-- sorttable.js (クリックソート) -->
         <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
         
         <style>
@@ -111,7 +112,7 @@ def show_sheet1():
     st.subheader("上位ページ")
 
     # --------------------------------------------------
-    # 2) CSV読み込み
+    # 2) CSV 読み込み
     # --------------------------------------------------
     df = load_data()
     if df.empty:
@@ -120,7 +121,7 @@ def show_sheet1():
 
     # --------------------------------------------------
     # 3) リネームマップ
-    #     - 「比較（7日間が良ければ＋）」 → 「比較」
+    #    「比較（7日間が良ければ＋）」 → 「比較」
     # --------------------------------------------------
     rename_map = {
         "SEO対策KW": "トップキーワード",
@@ -133,7 +134,6 @@ def show_sheet1():
         "sales_30d": "売上（30日間）",
         "sales_change_7d_vs_30d": "変更(売上)",
         "post_title": "seo_title",
-        # CSVカラム名「比較（7日間が良ければ＋）」 → 表示名「比較」
         "比較（7日間が良ければ＋）": "比較"
     }
     for oldcol, newcol in rename_map.items():
@@ -141,7 +141,7 @@ def show_sheet1():
             df.rename(columns={oldcol: newcol}, inplace=True)
 
     # --------------------------------------------------
-    # 4) URL列に seo_title を含める (タイトル + 改行 + リンク)
+    # 4) URL列に seo_title を含める
     # --------------------------------------------------
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
@@ -157,33 +157,38 @@ def show_sheet1():
         df.drop(columns=["seo_title"], inplace=True)
 
     # --------------------------------------------------
-    # 5) 最終的に表示する列 (11列)
-    #     - 「比較（7日間が良ければ＋）」 が 「比較」に変わっている
+    # 5) 最終表示列 (11列)
     # --------------------------------------------------
     final_cols = [
-        "URL",                 # 1
-        "トラフィック",         # 2
-        "トラフィック（30日間）",  # 3
-        "変更(トラフィック)",    # 4
-        "売上",                # 5
-        "売上（30日間）",       # 6
-        "変更(売上)",           # 7
-        "トップキーワード",      # 8
-        "順位",                # 9
-        "順位（30日）",         # 10
-        "比較"                 # 11 (リネーム済)
+        "URL",
+        "トラフィック",
+        "トラフィック（30日間）",
+        "変更(トラフィック)",
+        "売上",
+        "売上（30日間）",
+        "変更(売上)",
+        "トップキーワード",
+        "順位",
+        "順位（30日）",
+        "比較"
     ]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
     # --------------------------------------------------
-    # 6) プラス・マイナス値の色付け
-    #    「変更(トラフィック)」「変更(売上)」「比較」
+    # 6) プラス・マイナス値の色付け (¥ -894 などを考慮)
     # --------------------------------------------------
+    import re
+
     def color_plusminus(val):
-        s = str(val)
+        s = str(val).strip()
+        # ¥やカンマなどが含まれていても parse できるよう取り除く
+        # 例: "¥ -894" → "-894"
+        #     "¥ 99.5" → "99.5"
+        s_clean = re.sub(r"[¥,]", "", s)   # ¥ と , を削除
+        s_clean = s_clean.strip()          # 前後スペースを除去
         try:
-            x = float(val)
+            x = float(s_clean)
             if x > 0:
                 return f'<div class="cell-content pos-change">+{x}</div>'
             elif x < 0:
@@ -191,6 +196,7 @@ def show_sheet1():
             else:
                 return f'<div class="cell-content">{x}</div>'
         except:
+            # 数値変換失敗 => そのまま
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
     # ±色付けを適用する列
@@ -199,7 +205,7 @@ def show_sheet1():
             df[colname] = df[colname].apply(color_plusminus)
 
     # --------------------------------------------------
-    # 7) 他の列をHTML化 (スクロール対応)
+    # 7) 他の列をHTML化
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
