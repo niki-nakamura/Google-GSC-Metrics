@@ -7,26 +7,28 @@ from data_fetcher import main_fetch_all
 
 st.set_page_config(layout="wide")
 
-# ▼▼▼ 変更箇所(ボタンやソート用の状態管理)を加えるためのSessionStateの初期化 ▼▼▼
+# ▼▼▼ ソート状態管理 (変更なし) ▼▼▼
 if "traffic_sort_state" not in st.session_state:
     st.session_state["traffic_sort_state"] = 0  # 0:元表示 1:降順 2:昇順
 if "sales_sort_state" not in st.session_state:
     st.session_state["sales_sort_state"] = 0
 if "rank_sort_state" not in st.session_state:
     st.session_state["rank_sort_state"] = 0
-# ▲▲▲ ここまで ▲▲▲
+
+def load_data() -> pd.DataFrame:
+    try:
+        return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
+    except:
+        return pd.DataFrame()
 
 def show_sheet1():
     """
-    以下、表の形式に関するコードは変更せず、
-    途中に3つのボタン(トラフィック/売上/順位)を追加して、
-    ソート機能(多い順→少ない順→元の表示)を実現する。
+    表の形式は一切変更せず、ヘッダのoverflow + color分けを再適用。
     """
 
-    # ===================== ここから既存コード(「上位ページ」タイトルなど) =====================
     st.subheader("上位ページ")
 
-    # ▼▼▼ 追加: トラフィック/売上/順位 ボタンを行の上部に配置 ▼▼▼
+    # ---- ボタン(トラフィック/売上/順位) ----
     c1, c2, c3 = st.columns([1,1,1])
     with c1:
         traffic_btn = st.button("トラフィック")
@@ -34,16 +36,81 @@ def show_sheet1():
         sales_btn   = st.button("売上")
     with c3:
         rank_btn    = st.button("順位")
-    # ▲▲▲ 追加部分ここまで ▲▲▲
-
-    # ===================== 以下のテーブル生成ロジックは変更せず =====================
 
     df = load_data()
     if df.empty:
         st.warning("CSVが空、またはまだデータがありません。")
         return
 
-    # リネームマップ
+    # ▼▼▼ CSSを追加して、ヘッダを改行せずスクロールする ▼▼▼
+    st.markdown(
+        """
+        <!-- sorttable.js (クリックでソート) -->
+        <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
+        
+        <style>
+        table.ahrefs-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            overflow: hidden;
+            width: 100%;
+            font-family: "Arial", sans-serif;
+            font-size: 14px;
+            background-color: #fff;
+        }
+        table.ahrefs-table thead tr {
+            background-color: #f7f7f7;
+        }
+        table.ahrefs-table thead th {
+            font-weight: bold;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            /* ヘッダは改行せずスクロール */
+        }
+        table.ahrefs-table thead th .header-content {
+            display: inline-block;
+            max-width: 120px;
+            white-space: nowrap;   /* 折り返ししない */
+            overflow-x: auto;      /* 横スクロール */
+        }
+        table.ahrefs-table tbody tr:last-child td:first-child {
+            border-bottom-left-radius: 6px;
+        }
+        table.ahrefs-table tbody tr:last-child td:last-child {
+            border-bottom-right-radius: 6px;
+        }
+        table.ahrefs-table tbody tr td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: middle;
+            /* ここは改行可のまま (変更なし) */
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        table.ahrefs-table tbody tr:hover {
+            background-color: #fafafa;
+        }
+        /* ソートカーソル */
+        table.sortable thead {
+            cursor: pointer;
+        }
+        table.ahrefs-table td .cell-content {
+            display: inline-block;
+            max-width: 400px;
+            word-wrap: break-word;
+        }
+        /* +/− 色分け */
+        .pos-change { color: green; }
+        .neg-change { color: red; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # リネームマップ (変更なし)
     rename_map = {
         "SEO対策KW": "トップキーワード",
         "7日間平均順位": "順位",
@@ -61,6 +128,7 @@ def show_sheet1():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
+    # URL + seo_title
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
             title_esc = html.escape(str(row["seo_title"]))
@@ -90,27 +158,21 @@ def show_sheet1():
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
-    # ▼▼▼ 追加: ボタンの押下状態に応じてソート (多い順→少ない順→元) ▼▼▼
-    # 他ボタンが押されたら自分以外のソート状態はリセット
+    # ▼▼▼ ソート制御 ▼▼▼
     if traffic_btn:
         st.session_state["traffic_sort_state"] = (st.session_state["traffic_sort_state"] + 1) % 3
-        # 他をリセット
         st.session_state["sales_sort_state"] = 0
         st.session_state["rank_sort_state"]  = 0
-
     if sales_btn:
         st.session_state["sales_sort_state"] = (st.session_state["sales_sort_state"] + 1) % 3
         st.session_state["traffic_sort_state"] = 0
         st.session_state["rank_sort_state"]    = 0
-
     if rank_btn:
         st.session_state["rank_sort_state"] = (st.session_state["rank_sort_state"] + 1) % 3
         st.session_state["traffic_sort_state"] = 0
         st.session_state["sales_sort_state"]   = 0
 
-    # ソート実行
-    # traffic_sort_state:
-    #   1 => 多い順(降順), 2 => 少ない順(昇順), 0 => 元
+    # traffic_sort_state
     if st.session_state["traffic_sort_state"] == 1:
         if "トラフィック" in df.columns:
             df.sort_values(by="トラフィック", ascending=False, inplace=True)
@@ -124,16 +186,15 @@ def show_sheet1():
     elif st.session_state["sales_sort_state"] == 2:
         if "売上" in df.columns:
             df.sort_values(by="売上", ascending=True, inplace=True)
-    # rank_sort_state (多い順→降順, 少ない順→昇順)
+    # rank_sort_state
     elif st.session_state["rank_sort_state"] == 1:
         if "順位" in df.columns:
             df.sort_values(by="順位", ascending=False, inplace=True)
     elif st.session_state["rank_sort_state"] == 2:
         if "順位" in df.columns:
             df.sort_values(by="順位", ascending=True, inplace=True)
-    # ▲▲▲ 追加部分ここまで ▲▲▲
 
-    # 以下、色付け + HTMLテーブル生成部分はいじらない
+    # 以下 color_plusminus + HTML化
     def color_plusminus(val, with_yen=False):
         s = str(val).strip()
         s_clean = re.sub(r"[¥, ]", "", s)
