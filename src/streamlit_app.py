@@ -25,10 +25,9 @@ def show_sheet1():
       5. 変更(売上) (sales_change_7d_vs_30d)
       6. トップキーワード (SEO対策KW)
       7. 順位 (7日間平均順位)
-      8. 30日間平均順位
-      9. 比較
+      8. 比較（7日間が良ければ＋）
 
-    これ以外は非表示。
+    ※ 「30日間平均順位」は非表示にする。
     """
 
     # --------------------------------------------------
@@ -47,7 +46,7 @@ def show_sheet1():
             border-radius: 6px;
             overflow: hidden;
             width: 100%;
-            font-family: "Noto Sans JP", sans-serif;
+            font-family: "Arial", sans-serif;
             font-size: 14px;
             background-color: #fff;
         }
@@ -116,8 +115,6 @@ def show_sheet1():
 
     # --------------------------------------------------
     # 3) ユーザー指定のリネームマップ
-    #    - traffic_change_7d_vs_30d => 変更(トラフィック)
-    #    - sales_change_7d_vs_30d   => 変更(売上)
     # --------------------------------------------------
     rename_map = {
         "SEO対策KW": "トップキーワード",
@@ -127,7 +124,8 @@ def show_sheet1():
         "sales_7d": "売上",
         "sales_change_7d_vs_30d": "変更(売上)",
         "post_title": "seo_title"
-        # URL, 30日間平均順位, 比較 は変えない
+        # URL、比較（7日間が良ければ＋） は変えない
+        # 30日間平均順位 は非表示にするため対象外
     }
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
@@ -150,7 +148,8 @@ def show_sheet1():
         df.drop(columns=["seo_title"], inplace=True)
 
     # --------------------------------------------------
-    # 5) 最終的に表示する9列
+    # 5) 最終的に表示する8列
+    #    ※ 30日間平均順位 は入れない。
     # --------------------------------------------------
     final_cols = [
         "URL",                # 1
@@ -160,14 +159,13 @@ def show_sheet1():
         "変更(売上)",          # 5
         "トップキーワード",     # 6
         "順位",               # 7
-        "30日間平均順位",        # 8
-        "比較"  # 9
+        "比較（7日間が良ければ＋）"  # 8
     ]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
     # --------------------------------------------------
-    # 6) プラス・マイナス値の色付け (2つの『変更』だけに適用)
+    # 6) プラス・マイナス値の色付け (2つの変更のみ)
     # --------------------------------------------------
     def color_plusminus(val):
         s = str(val)
@@ -187,7 +185,7 @@ def show_sheet1():
             df[ch_col] = df[ch_col].apply(color_plusminus)
 
     # --------------------------------------------------
-    # 7) 他の列をHTML化 (セルラップ)
+    # 7) 他の列をHTML化
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
