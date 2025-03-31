@@ -101,7 +101,7 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    st.subheader("Ahrefs風 上位ページ")
+    st.subheader("上位ページ")
 
     # --------------------------------------------------
     # 2) CSV読み込み
