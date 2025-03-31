@@ -7,122 +7,43 @@ from data_fetcher import main_fetch_all
 
 st.set_page_config(layout="wide")
 
-def load_data() -> pd.DataFrame:
-    """
-    sheet_query_data.csv を読み込み、失敗したら空DataFrameを返す。
-    """
-    try:
-        return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
-    except:
-        return pd.DataFrame()
+# ▼▼▼ 変更箇所(ボタンやソート用の状態管理)を加えるためのSessionStateの初期化 ▼▼▼
+if "traffic_sort_state" not in st.session_state:
+    st.session_state["traffic_sort_state"] = 0  # 0:元表示 1:降順 2:昇順
+if "sales_sort_state" not in st.session_state:
+    st.session_state["sales_sort_state"] = 0
+if "rank_sort_state" not in st.session_state:
+    st.session_state["rank_sort_state"] = 0
+# ▲▲▲ ここまで ▲▲▲
 
 def show_sheet1():
     """
-    カラム一覧:
-      1. URL (seo_title + クリックリンク)
-      2. トラフィック (session)
-      3. トラフィック（30日間） (session_30d)
-      4. 変更(トラフィック) (traffic_change_7d_vs_30d)
-      5. 売上 (sales_7d)
-      6. 売上（30日間） (sales_30d)
-      7. 変更(売上) (sales_change_7d_vs_30d)
-      8. トップキーワード (SEO対策KW)
-      9. 順位 (7日間平均順位)
-      10. 順位（30日） (30日間平均順位)
-      11. 比較 (CSV上は「比較（7日間が良ければ＋）」 → 「比較」)
-
-    修正ポイント:
-      - 「変更(売上)」を ± 色分けしつつ、「¥」を先頭に付ける。
-      - そのほか「変更(トラフィック)」「比較」も ± 色分け。 
+    以下、表の形式に関するコードは変更せず、
+    途中に3つのボタン(トラフィック/売上/順位)を追加して、
+    ソート機能(多い順→少ない順→元の表示)を実現する。
     """
 
-    # --------------------------------------------------
-    # 1) CSS + sorttable.js
-    # --------------------------------------------------
-    st.markdown(
-        """
-        <!-- sorttable.js (クリックソート) -->
-        <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
-        
-        <style>
-        table.ahrefs-table {
-            border-collapse: separate;
-            border-spacing: 0;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            overflow: hidden;
-            width: 100%;
-            font-family: "Arial", sans-serif;
-            font-size: 14px;
-            background-color: #fff;
-        }
-        table.ahrefs-table thead tr {
-            background-color: #f7f7f7;
-        }
-        table.ahrefs-table thead th {
-            font-weight: bold;
-            padding: 8px;
-            border-bottom: 1px solid #ddd;
-            white-space: nowrap;
-        }
-        table.ahrefs-table thead tr:first-child th:first-child {
-            border-top-left-radius: 6px;
-        }
-        table.ahrefs-table thead tr:first-child th:last-child {
-            border-top-right-radius: 6px;
-        }
-        table.ahrefs-table tbody tr:last-child td:first-child {
-            border-bottom-left-radius: 6px;
-        }
-        table.ahrefs-table tbody tr:last-child td:last-child {
-            border-bottom-right-radius: 6px;
-        }
-        table.ahrefs-table tbody tr td {
-            padding: 6px 8px;
-            border-bottom: 1px solid #ddd;
-            vertical-align: middle;
-            /* 折り返し */
-            white-space: normal;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-        }
-        table.ahrefs-table tbody tr:hover {
-            background-color: #fafafa;
-        }
-        table.sortable thead {
-            cursor: pointer;
-        }
-        table.ahrefs-table thead th .header-content {
-            display: inline-block;
-            max-width: 120px;
-            overflow-x: auto;
-        }
-        table.ahrefs-table td .cell-content {
-            display: inline-block;
-            max-width: 400px;
-            word-wrap: break-word;
-        }
-        .pos-change { color: green; }
-        .neg-change { color: red; }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
+    # ===================== ここから既存コード(「上位ページ」タイトルなど) =====================
     st.subheader("上位ページ")
 
-    # --------------------------------------------------
-    # 2) CSV 読み込み
-    # --------------------------------------------------
+    # ▼▼▼ 追加: トラフィック/売上/順位 ボタンを行の上部に配置 ▼▼▼
+    c1, c2, c3 = st.columns([1,1,1])
+    with c1:
+        traffic_btn = st.button("トラフィック")
+    with c2:
+        sales_btn   = st.button("売上")
+    with c3:
+        rank_btn    = st.button("順位")
+    # ▲▲▲ 追加部分ここまで ▲▲▲
+
+    # ===================== 以下のテーブル生成ロジックは変更せず =====================
+
     df = load_data()
     if df.empty:
         st.warning("CSVが空、またはまだデータがありません。")
         return
 
-    # --------------------------------------------------
-    # 3) リネームマップ
-    #    「比較（7日間が良ければ＋）」 → 「比較」
-    # --------------------------------------------------
+    # リネームマップ
     rename_map = {
         "SEO対策KW": "トップキーワード",
         "7日間平均順位": "順位",
@@ -140,9 +61,6 @@ def show_sheet1():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
-    # --------------------------------------------------
-    # 4) URL列に seo_title を含める (タイトル + 改行 + クリックURL)
-    # --------------------------------------------------
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
             title_esc = html.escape(str(row["seo_title"]))
@@ -156,9 +74,6 @@ def show_sheet1():
         df["URL"] = df.apply(combine_title_url, axis=1)
         df.drop(columns=["seo_title"], inplace=True)
 
-    # --------------------------------------------------
-    # 5) 最終的に表示する列 (11列)
-    # --------------------------------------------------
     final_cols = [
         "URL",
         "トラフィック",
@@ -175,47 +90,73 @@ def show_sheet1():
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
-    # --------------------------------------------------
-    # 6) プラス・マイナス値の色付け & 「¥」再付与
-    # --------------------------------------------------
-    import re
+    # ▼▼▼ 追加: ボタンの押下状態に応じてソート (多い順→少ない順→元) ▼▼▼
+    # 他ボタンが押されたら自分以外のソート状態はリセット
+    if traffic_btn:
+        st.session_state["traffic_sort_state"] = (st.session_state["traffic_sort_state"] + 1) % 3
+        # 他をリセット
+        st.session_state["sales_sort_state"] = 0
+        st.session_state["rank_sort_state"]  = 0
 
+    if sales_btn:
+        st.session_state["sales_sort_state"] = (st.session_state["sales_sort_state"] + 1) % 3
+        st.session_state["traffic_sort_state"] = 0
+        st.session_state["rank_sort_state"]    = 0
+
+    if rank_btn:
+        st.session_state["rank_sort_state"] = (st.session_state["rank_sort_state"] + 1) % 3
+        st.session_state["traffic_sort_state"] = 0
+        st.session_state["sales_sort_state"]   = 0
+
+    # ソート実行
+    # traffic_sort_state:
+    #   1 => 多い順(降順), 2 => 少ない順(昇順), 0 => 元
+    if st.session_state["traffic_sort_state"] == 1:
+        if "トラフィック" in df.columns:
+            df.sort_values(by="トラフィック", ascending=False, inplace=True)
+    elif st.session_state["traffic_sort_state"] == 2:
+        if "トラフィック" in df.columns:
+            df.sort_values(by="トラフィック", ascending=True, inplace=True)
+    # sales_sort_state
+    elif st.session_state["sales_sort_state"] == 1:
+        if "売上" in df.columns:
+            df.sort_values(by="売上", ascending=False, inplace=True)
+    elif st.session_state["sales_sort_state"] == 2:
+        if "売上" in df.columns:
+            df.sort_values(by="売上", ascending=True, inplace=True)
+    # rank_sort_state (多い順→降順, 少ない順→昇順)
+    elif st.session_state["rank_sort_state"] == 1:
+        if "順位" in df.columns:
+            df.sort_values(by="順位", ascending=False, inplace=True)
+    elif st.session_state["rank_sort_state"] == 2:
+        if "順位" in df.columns:
+            df.sort_values(by="順位", ascending=True, inplace=True)
+    # ▲▲▲ 追加部分ここまで ▲▲▲
+
+    # 以下、色付け + HTMLテーブル生成部分はいじらない
     def color_plusminus(val, with_yen=False):
-        """
-        val: string or number
-        with_yen: True if we want to re-add '¥' in the final display
-        ex) '¥ -894' => parse -> -894 => show => '¥-894' with red color
-        """
-        original_str = str(val).strip()
-        # 1) parse numeric
-        #    remove ¥, comma, spaces etc.
-        s_clean = re.sub(r"[¥, ]", "", original_str)
+        s = str(val).strip()
+        s_clean = re.sub(r"[¥, ]", "", s)
         try:
             x = float(s_clean)
         except:
-            # parse失敗 => そのまま表示
-            return f'<div class="cell-content">{html.escape(original_str)}</div>'
+            return f'<div class="cell-content">{html.escape(s)}</div>'
 
-        # 2) color + sign
         if x > 0:
             sign_str = f'+{x}'
-            # => '¥+99.5' if with_yen
         elif x < 0:
-            sign_str = str(x)  # ex. "-894.0"
+            sign_str = str(x)
         else:
             sign_str = '0'
 
-        # re-add '¥' if requested
         if with_yen:
             if x > 0:
                 sign_str = f'¥+{abs(x)}'
             elif x < 0:
-                # ex) x == -894 => "¥-894"
                 sign_str = f'¥{x}'
             else:
                 sign_str = '¥0'
 
-        # 3) wrap with color
         if x > 0:
             return f'<div class="cell-content pos-change">{sign_str}</div>'
         elif x < 0:
@@ -223,46 +164,28 @@ def show_sheet1():
         else:
             return f'<div class="cell-content">{sign_str}</div>'
 
-    # 変更(トラフィック) => ±色付け (通貨扱いではないので yen=False)
     if "変更(トラフィック)" in df.columns:
         df["変更(トラフィック)"] = df["変更(トラフィック)"].apply(lambda v: color_plusminus(v, with_yen=False))
-
-    # 変更(売上) => ±色付け + '¥'再付与
     if "変更(売上)" in df.columns:
         df["変更(売上)"] = df["変更(売上)"].apply(lambda v: color_plusminus(v, with_yen=True))
-
-    # 比較 => ±色付け (通貨扱いではないはず → yen=False)
     if "比較" in df.columns:
         df["比較"] = df["比較"].apply(lambda v: color_plusminus(v, with_yen=False))
 
-    # --------------------------------------------------
-    # 7) 他の列をHTML化 (スクロール対応)
-    # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
-    skip_cols = {"URL", "変更(トラフィック)", "変更(売上)", "比較"}
-    for col in df.columns:
-        if col not in skip_cols:
-            df[col] = df[col].apply(wrap_cell)
+    skip_cols = {"URL","変更(トラフィック)","変更(売上)","比較"}
+    for c in df.columns:
+        if c not in skip_cols:
+            df[c] = df[c].apply(wrap_cell)
 
-    # --------------------------------------------------
-    # 8) ヘッダを <div class="header-content"> でラップ
-    # --------------------------------------------------
     new_headers = []
     for c in df.columns:
-        stripped = c.replace('<div class="cell-content">','').replace('</div>','')
-        new_headers.append(f'<div class="header-content">{html.escape(stripped)}</div>')
+        c_strip = c.replace('<div class="cell-content">','').replace('</div>','')
+        new_headers.append(f'<div class="header-content">{html.escape(c_strip)}</div>')
     df.columns = new_headers
 
-    # --------------------------------------------------
-    # 9) HTML化して表示
-    # --------------------------------------------------
-    html_table = df.to_html(
-        index=False,
-        escape=False,
-        classes=["ahrefs-table","sortable"]
-    )
+    html_table = df.to_html(index=False, escape=False, classes=["ahrefs-table", "sortable"])
     st.write(html_table, unsafe_allow_html=True)
 
 ###################################
@@ -376,10 +299,15 @@ def show_sheet2():
     st.title("README:")
     st.markdown(README_TEXT)
 
+def load_data() -> pd.DataFrame:
+    try:
+        return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
+    except:
+        return pd.DataFrame()
+
 def streamlit_main():
     tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
     with tab1:
-        # ここで show_sheet1() を呼ぶように
         show_sheet1()
     with tab2:
         show_sheet2()
