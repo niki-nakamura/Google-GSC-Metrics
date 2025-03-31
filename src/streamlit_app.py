@@ -20,14 +20,16 @@ def show_sheet1():
     以下のカラムを表示:
       1. URL (seo_title + クリックリンク)
       2. トラフィック (session)
-      3. 変更(トラフィック) (traffic_change_7d_vs_30d)
-      4. 売上 (sales_7d)
-      5. 変更(売上) (sales_change_7d_vs_30d)
-      6. トップキーワード (SEO対策KW)
-      7. 順位 (7日間平均順位)
-      8. 比較
+      3. トラフィック（30日間） (session_30d)
+      4. 変更(トラフィック) (traffic_change_7d_vs_30d)
+      5. 売上 (sales_7d)
+      6. 売上（30日間） (sales_30d)
+      7. 変更(売上) (sales_change_7d_vs_30d)
+      8. トップキーワード (SEO対策KW)
+      9. 順位 (7日間平均順位)
+      10. 比較（7日間が良ければ＋）
 
-    ※ 「30日間平均順位」は非表示にする。
+    それ以外は表示しない。
     """
 
     # --------------------------------------------------
@@ -46,7 +48,7 @@ def show_sheet1():
             border-radius: 6px;
             overflow: hidden;
             width: 100%;
-            font-family: "Noto Sans JP", sans-serif;
+            font-family: "Arial", sans-serif;
             font-size: 14px;
             background-color: #fff;
         }
@@ -114,25 +116,26 @@ def show_sheet1():
         return
 
     # --------------------------------------------------
-    # 3) ユーザー指定のリネームマップ
+    # 3) リネームマップ
     # --------------------------------------------------
     rename_map = {
         "SEO対策KW": "トップキーワード",
         "7日間平均順位": "順位",
         "session": "トラフィック",
+        "session_30d": "トラフィック（30日間）",
         "traffic_change_7d_vs_30d": "変更(トラフィック)",
         "sales_7d": "売上",
+        "sales_30d": "売上（30日間）",
         "sales_change_7d_vs_30d": "変更(売上)",
         "post_title": "seo_title"
-        # URL、比較 は変えない
-        # 30日間平均順位 は非表示にするため対象外
+        # URL, 比較（7日間が良ければ＋） は変えない
     }
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
     # --------------------------------------------------
-    # 4) URL列に seo_title を含める (タイトル + 改行 + クリックURL)
+    # 4) URL列に seo_title を含める (タイトル + 改行 + リンク)
     # --------------------------------------------------
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
@@ -148,24 +151,25 @@ def show_sheet1():
         df.drop(columns=["seo_title"], inplace=True)
 
     # --------------------------------------------------
-    # 5) 最終的に表示する8列
-    #    ※ 30日間平均順位 は入れない。
+    # 5) 最終的に表示する10列
     # --------------------------------------------------
     final_cols = [
-        "URL",                # 1
-        "トラフィック",        # 2
-        "変更(トラフィック)",   # 3
-        "売上",               # 4
-        "変更(売上)",          # 5
-        "トップキーワード",     # 6
-        "順位",               # 7
-        "比較"  # 8
+        "URL",                 # 1
+        "トラフィック",         # 2
+        "トラフィック（30日間）",  # 3
+        "変更(トラフィック)",    # 4
+        "売上",                # 5
+        "売上（30日間）",       # 6
+        "変更(売上)",           # 7
+        "トップキーワード",      # 8
+        "順位",                # 9
+        "比較（7日間が良ければ＋）"  # 10
     ]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
     # --------------------------------------------------
-    # 6) プラス・マイナス値の色付け (2つの変更のみ)
+    # 6) プラス・マイナス値の色付け
     # --------------------------------------------------
     def color_plusminus(val):
         s = str(val)
@@ -180,12 +184,13 @@ def show_sheet1():
         except:
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
+    # 「変更(トラフィック)」「変更(売上)」だけ数値増減を色付け
     for ch_col in ["変更(トラフィック)", "変更(売上)"]:
         if ch_col in df.columns:
             df[ch_col] = df[ch_col].apply(color_plusminus)
 
     # --------------------------------------------------
-    # 7) 他の列をHTML化
+    # 7) 他の列をHTML化 (スクロール対応) 
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
