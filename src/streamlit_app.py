@@ -25,7 +25,7 @@ def show_sheet1():
       5. 変更(売上) (sales_change_7d_vs_30d)
       6. トップキーワード (SEO対策KW)
       7. 順位 (7日間平均順位)
-      8. 比較（7日間が良ければ＋）
+      8. 比較
 
     ※ 「30日間平均順位」は非表示にする。
     """
@@ -46,7 +46,7 @@ def show_sheet1():
             border-radius: 6px;
             overflow: hidden;
             width: 100%;
-            font-family: "Arial", sans-serif;
+            font-family: "Noto Sans JP", sans-serif;
             font-size: 14px;
             background-color: #fff;
         }
@@ -124,7 +124,7 @@ def show_sheet1():
         "sales_7d": "売上",
         "sales_change_7d_vs_30d": "変更(売上)",
         "post_title": "seo_title"
-        # URL、比較（7日間が良ければ＋） は変えない
+        # URL、比較 は変えない
         # 30日間平均順位 は非表示にするため対象外
     }
     for oldcol, newcol in rename_map.items():
@@ -159,7 +159,7 @@ def show_sheet1():
         "変更(売上)",          # 5
         "トップキーワード",     # 6
         "順位",               # 7
-        "比較（7日間が良ければ＋）"  # 8
+        "比較"  # 8
     ]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
