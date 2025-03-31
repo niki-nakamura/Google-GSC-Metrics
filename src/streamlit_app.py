@@ -16,19 +16,6 @@ def load_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 def show_sheet1():
-    """
-    Ahrefs「上位ページ」風に表示する関数。
-    - URL
-    - SEOタイトル (post_title)
-    - トラフィック (page_view_7d)
-    - 変更 (traffic_change_7d_vs_30d)
-    - 値 (sales_7d)
-    - 変更 (sales_7d vs sales_30d)
-    - トップキーワード (SEO対策KW)
-    - 順位 (7日間平均順位)
-
-    それ以外、特に ONTENT_TYPE 以降の列は非表示。
-    """
 
     # --------------------------------------------------
     # 1) CSS + sorttable.js
@@ -91,7 +78,7 @@ def show_sheet1():
         }
         table.ahrefs-table td .cell-content {
             display: inline-block;
-            max-width: 150px;
+            max-width: 220px; /* 少し広めに */
             white-space: nowrap;
             overflow-x: auto;
         }
@@ -113,31 +100,9 @@ def show_sheet1():
         return
 
     # --------------------------------------------------
-    # 3) ONTENT_TYPE以降のカラムを削除（ただし指定カラムは除外）
+    # 3) カラム名のリネーム
+    #    (例として、post_title → seo_title, etc.)
     # --------------------------------------------------
-
-    # CSV内の全カラム一覧
-    all_cols = list(df.columns)
-    # ONTENT_TYPE の位置を取得（なければ末尾扱い）
-    if "ONTENT_TYPE" in df.columns:
-        idx_ont = df.columns.get_loc("ONTENT_TYPE")
-    else:
-        idx_ont = len(df.columns)  # 存在しなければ実質何もしない
-
-    # 今回使う予定の(元の)カラム
-    needed_original_cols = [
-        "URL",  # リンク表示
-        "post_title",  # SEOタイトル
-        "page_view_7d",  # トラフィック
-        "traffic_change_7d_vs_30d",  # 変更(トラフィック)
-        "sales_7d",  # 値
-        "sales_30d", # sales_30d(内部計算等で使うかもしれない)
-        "sales_change_7d_vs_30d", # 変更(売上)
-        "SEO対策KW", # トップキーワード
-        "7日間平均順位"  # 順位
-    ]
-
-    # これらを Ahrefs風にリネームする辞書
     rename_map = {
         "SEO対策KW": "keyword_top",
         "7日間平均順位": "rank_7d",
@@ -149,60 +114,49 @@ def show_sheet1():
         "post_title": "seo_title",
         # URL はそのまま
     }
-
-    # 1) リネームを適用
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
-    # 2) ONTENT_TYPE 以降のカラムを非表示にする
-    #    ただし needed_original_cols or rename_mapで使うカラムだけは保護する
-    #    (リネーム後のカラム名をkeepしないといけないので set化)
-    keep_colnames = set(needed_original_cols + list(rename_map.values()))
-    keep_colnames.add("URL")  # URLは残す(リネームしないので)
-    
-    current_cols = list(df.columns)  # リネーム後のdfカラム
-    drop_list = []
-    if idx_ont < len(current_cols):
-        # ONTENT_TYPE含む、右側の列を候補に(= i in [idx_ont, len(current_cols)) )
-        for i in range(idx_ont, len(current_cols)):
-            colname = current_cols[i]
-            if colname not in keep_colnames:
-                drop_list.append(colname)
-    
-    df.drop(columns=drop_list, inplace=True, errors="ignore")
+    # --------------------------------------------------
+    # 4) URL列: seo_title + クリック可能URLをまとめる
+    #    例:
+    #      【安心安全】お小遣い稼ぎにも！2025年版おすすめポイ活アプリ
+    #      https://good-apps.jp/media/column/xxxx
+    # --------------------------------------------------
+    if "URL" in df.columns and "seo_title" in df.columns:
+        def make_title_and_url(row):
+            title_esc = html.escape(str(row["seo_title"]))
+            url_esc = html.escape(str(row["URL"]))
+            return (
+                f'<div class="cell-content">'
+                f'{title_esc}<br/>'  # タイトルの後に改行
+                f'<a href="{url_esc}" target="_blank">{url_esc}</a>'
+                f'</div>'
+            )
+        df["URL"] = df.apply(make_title_and_url, axis=1)
+        # seo_title のカラムはURLに含めたので非表示にする
+        df.drop(columns=["seo_title"], inplace=True)
 
     # --------------------------------------------------
-    # 4) URL をクリック可能に
+    # 5) 表示順を Ahrefs 風に(例: URL, traffic_7d, traffic_change, sales_7d...)
     # --------------------------------------------------
-    if "URL" in df.columns:
-        def make_clickable(u):
-            esc = html.escape(str(u))
-            return f'<div class="cell-content"><a href="{esc}" target="_blank">{esc}</a></div>'
-        df["URL"] = df["URL"].apply(make_clickable)
-
-    # --------------------------------------------------
-    # 5) 表示順を Ahrefs風に固定
-    # --------------------------------------------------
-    # rename後の列で並べる
-    desired_new_cols = [
-        "URL",
-        "seo_title",
+    desired_cols = [
+        "URL",            # ← ここに (seo_title + URL)
         "traffic_7d",
         "traffic_change",
         "sales_7d",
         "sales_change",
         "keyword_top",
-        "rank_7d"
+        "rank_7d",
     ]
-    existing_new = [c for c in desired_new_cols if c in df.columns]
-    # そのほかは後ろに
-    others_new = [c for c in df.columns if c not in existing_new]
-    final_cols = existing_new + others_new
+    exist_cols = [c for c in desired_cols if c in df.columns]
+    others = [c for c in df.columns if c not in exist_cols]
+    final_cols = exist_cols + others
     df = df[final_cols]
 
     # --------------------------------------------------
-    # 6) プラス・マイナス値の色付け(トラフィック変更・売上変更)
+    # 6) 増減(±)の色付け
     # --------------------------------------------------
     def color_change(val):
         s = str(val)
@@ -217,19 +171,19 @@ def show_sheet1():
         except:
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
-    for c in ["traffic_change", "sales_change"]:
-        if c in df.columns:
-            df[c] = df[c].apply(color_change)
+    for ch_col in ["traffic_change", "sales_change"]:
+        if ch_col in df.columns:
+            df[ch_col] = df[ch_col].apply(color_change)
 
     # --------------------------------------------------
-    # 7) 残りの列をスクロール対応HTML化
+    # 7) 他の列は通常スクロール対応HTML化
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
-    for col in df.columns:
-        if (col not in ["URL", "traffic_change", "sales_change"]) and (col in df.columns):
-            df[col] = df[col].apply(wrap_cell)
+    for c in df.columns:
+        if c not in ["URL","traffic_change","sales_change"]:
+            df[c] = df[c].apply(wrap_cell)
 
     # --------------------------------------------------
     # 8) ヘッダを <div class="header-content"> でラップ
@@ -246,9 +200,31 @@ def show_sheet1():
     html_table = df.to_html(
         index=False,
         escape=False,
-        classes=["ahrefs-table", "sortable"]
+        classes=["ahrefs-table","sortable"]
     )
     st.write(html_table, unsafe_allow_html=True)
+
+###################################
+# (Hidden) README doc
+###################################
+README_TEXT = """\
+(ここにREADMEの内容)
+"""
+
+def show_sheet2():
+    st.title("README:")
+    st.markdown(README_TEXT)
+
+def streamlit_main():
+    tab1, tab2 = st.tabs(["📊 Data Viewer", "📖 README"])
+    with tab1:
+        show_sheet1()
+    with tab2:
+        show_sheet2()
+
+if __name__ == "__main__":
+    streamlit_main()
+
 
 ###################################
 # (Hidden) README doc
