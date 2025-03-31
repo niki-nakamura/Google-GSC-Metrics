@@ -28,11 +28,11 @@ def show_sheet1():
       8. トップキーワード (SEO対策KW)
       9. 順位 (7日間平均順位)
       10. 順位（30日） (30日間平均順位)
-      11. 比較（7日間が良ければ＋）
+      11. 比較
 
     それ以外は表示しない。
     加えて:
-      - 「変更(売上)」「比較（7日間が良ければ＋）」 でも ± 色付けを実施。
+      - 「変更(売上)」「比較」 でも ± 色付けを実施。
     """
 
     # --------------------------------------------------
@@ -132,7 +132,7 @@ def show_sheet1():
         "sales_30d": "売上（30日間）",
         "sales_change_7d_vs_30d": "変更(売上)",
         "post_title": "seo_title"
-        # URL, 比較（7日間が良ければ＋） はそのまま
+        # URL, 比較 はそのまま
     }
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
@@ -168,14 +168,14 @@ def show_sheet1():
         "トップキーワード",      # 8
         "順位",                # 9
         "順位（30日）",         # 10 ← 新しく挿入
-        "比較（7日間が良ければ＋）"  # 11
+        "比較"  # 11
     ]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
     # --------------------------------------------------
     # 6) プラス・マイナス値の色付け
-    #   変更(トラフィック), 変更(売上), 比較（7日間が良ければ＋）
+    #   変更(トラフィック), 変更(売上), 比較
     # --------------------------------------------------
     def color_plusminus(val):
         s = str(val)
@@ -192,7 +192,7 @@ def show_sheet1():
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
     # ±色分けを適用する列
-    for ch_col in ["変更(トラフィック)", "変更(売上)", "比較（7日間が良ければ＋）"]:
+    for ch_col in ["変更(トラフィック)", "変更(売上)", "比較"]:
         if ch_col in df.columns:
             df[ch_col] = df[ch_col].apply(color_plusminus)
 
@@ -203,7 +203,7 @@ def show_sheet1():
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
     # すでに ±色付け or URL化 した列はスキップ
-    skip_cols = set(["URL", "変更(トラフィック)", "変更(売上)", "比較（7日間が良ければ＋）"])
+    skip_cols = set(["URL", "変更(トラフィック)", "変更(売上)", "比較"])
     for col in df.columns:
         if col not in skip_cols:
             df[col] = df[col].apply(wrap_cell)
