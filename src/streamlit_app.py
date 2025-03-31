@@ -17,7 +17,7 @@ def load_data() -> pd.DataFrame:
 
 def show_sheet1():
     """
-    以下のカラムを表示:
+    カラム一覧:
       1. URL (seo_title + クリックリンク)
       2. トラフィック (session)
       3. トラフィック（30日間） (session_30d)
@@ -28,11 +28,11 @@ def show_sheet1():
       8. トップキーワード (SEO対策KW)
       9. 順位 (7日間平均順位)
       10. 順位（30日） (30日間平均順位)
-      11. 比較（7日間が良ければ＋）
+      11. 比較 (CSV上は「比較（7日間が良ければ＋）」)
 
-    それ以外は表示しない。
-    加えて:
-      - 「変更(売上)」「比較（7日間が良ければ＋）」 でも ± 色付けを実施。
+    変更点:
+      - 「変更(売上)」に +/− 色付けを追加
+      - 「比較（7日間が良ければ＋）」 → 「比較」にリネームし、+/− 色付けを適用
     """
 
     # --------------------------------------------------
@@ -40,7 +40,7 @@ def show_sheet1():
     # --------------------------------------------------
     st.markdown(
         """
-        <!-- sorttable.js (クリックソート) -->
+        <!-- 列見出しクリックソート -->
         <script src="https://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
         
         <style>
@@ -80,7 +80,7 @@ def show_sheet1():
             padding: 6px 8px;
             border-bottom: 1px solid #ddd;
             vertical-align: middle;
-            /* 折り返し表示 */
+            /* 折り返し */
             white-space: normal;
             word-wrap: break-word;
             overflow-wrap: break-word;
@@ -98,7 +98,7 @@ def show_sheet1():
         }
         table.ahrefs-table td .cell-content {
             display: inline-block;
-            max-width: 400px; 
+            max-width: 400px;
             word-wrap: break-word;
         }
         .pos-change { color: green; }
@@ -111,7 +111,7 @@ def show_sheet1():
     st.subheader("上位ページ")
 
     # --------------------------------------------------
-    # 2) CSV 読み込み
+    # 2) CSV読み込み
     # --------------------------------------------------
     df = load_data()
     if df.empty:
@@ -120,19 +120,21 @@ def show_sheet1():
 
     # --------------------------------------------------
     # 3) リネームマップ
+    #     - 「比較（7日間が良ければ＋）」 → 「比較」
     # --------------------------------------------------
     rename_map = {
         "SEO対策KW": "トップキーワード",
         "7日間平均順位": "順位",
-        "30日間平均順位": "順位（30日）",   # ← 新規追加
+        "30日間平均順位": "順位（30日）",
         "session": "トラフィック",
         "session_30d": "トラフィック（30日間）",
         "traffic_change_7d_vs_30d": "変更(トラフィック)",
         "sales_7d": "売上",
         "sales_30d": "売上（30日間）",
         "sales_change_7d_vs_30d": "変更(売上)",
-        "post_title": "seo_title"
-        # URL, 比較（7日間が良ければ＋） はそのまま
+        "post_title": "seo_title",
+        # CSVカラム名「比較（7日間が良ければ＋）」 → 表示名「比較」
+        "比較（7日間が良ければ＋）": "比較"
     }
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
@@ -155,7 +157,8 @@ def show_sheet1():
         df.drop(columns=["seo_title"], inplace=True)
 
     # --------------------------------------------------
-    # 5) 最終的に表示する11列
+    # 5) 最終的に表示する列 (11列)
+    #     - 「比較（7日間が良ければ＋）」 が 「比較」に変わっている
     # --------------------------------------------------
     final_cols = [
         "URL",                 # 1
@@ -167,15 +170,15 @@ def show_sheet1():
         "変更(売上)",           # 7
         "トップキーワード",      # 8
         "順位",                # 9
-        "順位（30日）",         # 10 ← 新しく挿入
-        "比較（7日間が良ければ＋）"  # 11
+        "順位（30日）",         # 10
+        "比較"                 # 11 (リネーム済)
     ]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
     # --------------------------------------------------
     # 6) プラス・マイナス値の色付け
-    #   変更(トラフィック), 変更(売上), 比較（7日間が良ければ＋）
+    #    「変更(トラフィック)」「変更(売上)」「比較」
     # --------------------------------------------------
     def color_plusminus(val):
         s = str(val)
@@ -188,22 +191,20 @@ def show_sheet1():
             else:
                 return f'<div class="cell-content">{x}</div>'
         except:
-            # 数値変換失敗 => そのまま表示
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
-    # ±色分けを適用する列
-    for ch_col in ["変更(トラフィック)", "変更(売上)", "比較（7日間が良ければ＋）"]:
-        if ch_col in df.columns:
-            df[ch_col] = df[ch_col].apply(color_plusminus)
+    # ±色付けを適用する列
+    for colname in ["変更(トラフィック)", "変更(売上)", "比較"]:
+        if colname in df.columns:
+            df[colname] = df[colname].apply(color_plusminus)
 
     # --------------------------------------------------
-    # 7) 他の列をHTML化 (スクロール対応) 
+    # 7) 他の列をHTML化 (スクロール対応)
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
-    # すでに ±色付け or URL化 した列はスキップ
-    skip_cols = set(["URL", "変更(トラフィック)", "変更(売上)", "比較（7日間が良ければ＋）"])
+    skip_cols = {"URL", "変更(トラフィック)", "変更(売上)", "比較"}
     for col in df.columns:
         if col not in skip_cols:
             df[col] = df[col].apply(wrap_cell)
@@ -212,13 +213,13 @@ def show_sheet1():
     # 8) ヘッダを <div class="header-content"> でラップ
     # --------------------------------------------------
     new_headers = []
-    for col in df.columns:
-        stripped = col.replace('<div class="cell-content">','').replace('</div>','')
+    for c in df.columns:
+        stripped = c.replace('<div class="cell-content">','').replace('</div>','')
         new_headers.append(f'<div class="header-content">{html.escape(stripped)}</div>')
     df.columns = new_headers
 
     # --------------------------------------------------
-    # 9) HTMLテーブル化して表示
+    # 9) HTML化して表示
     # --------------------------------------------------
     html_table = df.to_html(
         index=False,
