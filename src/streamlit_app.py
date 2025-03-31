@@ -29,11 +29,11 @@ def show_sheet1():
       8. トップキーワード (SEO対策KW)
       9. 順位 (7日間平均順位)
       10. 順位（30日） (30日間平均順位)
-      11. 比較 (CSV上は「比較（7日間が良ければ＋）」)
+      11. 比較 (CSV上は「比較（7日間が良ければ＋）」 → 「比較」)
 
     修正ポイント:
-      - 「変更(売上)」で「¥ -894」「¥ 99.5」などの文字列でも ±色分けが可能に。
-      - 「比較（7日間が良ければ＋）」 を 「比較」にリネーム後、±色付けを行う。
+      - 「変更(売上)」を ± 色分けしつつ、「¥」を先頭に付ける。
+      - そのほか「変更(トラフィック)」「比較」も ± 色分け。 
     """
 
     # --------------------------------------------------
@@ -141,7 +141,7 @@ def show_sheet1():
             df.rename(columns={oldcol: newcol}, inplace=True)
 
     # --------------------------------------------------
-    # 4) URL列に seo_title を含める
+    # 4) URL列に seo_title を含める (タイトル + 改行 + クリックURL)
     # --------------------------------------------------
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
@@ -157,7 +157,7 @@ def show_sheet1():
         df.drop(columns=["seo_title"], inplace=True)
 
     # --------------------------------------------------
-    # 5) 最終表示列 (11列)
+    # 5) 最終的に表示する列 (11列)
     # --------------------------------------------------
     final_cols = [
         "URL",
@@ -176,36 +176,67 @@ def show_sheet1():
     df = df[exist_cols]
 
     # --------------------------------------------------
-    # 6) プラス・マイナス値の色付け (¥ -894 などを考慮)
+    # 6) プラス・マイナス値の色付け & 「¥」再付与
     # --------------------------------------------------
     import re
 
-    def color_plusminus(val):
-        s = str(val).strip()
-        # ¥やカンマなどが含まれていても parse できるよう取り除く
-        # 例: "¥ -894" → "-894"
-        #     "¥ 99.5" → "99.5"
-        s_clean = re.sub(r"[¥,]", "", s)   # ¥ と , を削除
-        s_clean = s_clean.strip()          # 前後スペースを除去
+    def color_plusminus(val, with_yen=False):
+        """
+        val: string or number
+        with_yen: True if we want to re-add '¥' in the final display
+        ex) '¥ -894' => parse -> -894 => show => '¥-894' with red color
+        """
+        original_str = str(val).strip()
+        # 1) parse numeric
+        #    remove ¥, comma, spaces etc.
+        s_clean = re.sub(r"[¥, ]", "", original_str)
         try:
             x = float(s_clean)
-            if x > 0:
-                return f'<div class="cell-content pos-change">+{x}</div>'
-            elif x < 0:
-                return f'<div class="cell-content neg-change">{x}</div>'
-            else:
-                return f'<div class="cell-content">{x}</div>'
         except:
-            # 数値変換失敗 => そのまま
-            return f'<div class="cell-content">{html.escape(s)}</div>'
+            # parse失敗 => そのまま表示
+            return f'<div class="cell-content">{html.escape(original_str)}</div>'
 
-    # ±色付けを適用する列
-    for colname in ["変更(トラフィック)", "変更(売上)", "比較"]:
-        if colname in df.columns:
-            df[colname] = df[colname].apply(color_plusminus)
+        # 2) color + sign
+        if x > 0:
+            sign_str = f'+{x}'
+            # => '¥+99.5' if with_yen
+        elif x < 0:
+            sign_str = str(x)  # ex. "-894.0"
+        else:
+            sign_str = '0'
+
+        # re-add '¥' if requested
+        if with_yen:
+            if x > 0:
+                sign_str = f'¥+{abs(x)}'
+            elif x < 0:
+                # ex) x == -894 => "¥-894"
+                sign_str = f'¥{x}'
+            else:
+                sign_str = '¥0'
+
+        # 3) wrap with color
+        if x > 0:
+            return f'<div class="cell-content pos-change">{sign_str}</div>'
+        elif x < 0:
+            return f'<div class="cell-content neg-change">{sign_str}</div>'
+        else:
+            return f'<div class="cell-content">{sign_str}</div>'
+
+    # 変更(トラフィック) => ±色付け (通貨扱いではないので yen=False)
+    if "変更(トラフィック)" in df.columns:
+        df["変更(トラフィック)"] = df["変更(トラフィック)"].apply(lambda v: color_plusminus(v, with_yen=False))
+
+    # 変更(売上) => ±色付け + '¥'再付与
+    if "変更(売上)" in df.columns:
+        df["変更(売上)"] = df["変更(売上)"].apply(lambda v: color_plusminus(v, with_yen=True))
+
+    # 比較 => ±色付け (通貨扱いではないはず → yen=False)
+    if "比較" in df.columns:
+        df["比較"] = df["比較"].apply(lambda v: color_plusminus(v, with_yen=False))
 
     # --------------------------------------------------
-    # 7) 他の列をHTML化
+    # 7) 他の列をHTML化 (スクロール対応)
     # --------------------------------------------------
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
