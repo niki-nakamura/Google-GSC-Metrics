@@ -234,74 +234,73 @@ def show_sheet1():
             df.sort_values(by="順位", ascending=True, inplace=True)
 
     # ▼▼▼ フィルタ適用ロジック ▼▼▼
-    # 1. 売上減少
-    if st.session_state["sales_decrease_filter"]:
-        # 数値をパースして -20 以下のみ抽出し、より減少率が大きい順(昇順)に
-        def parse_numeric(value):
-            s_clean = re.sub(r"[¥,% ]", "", str(value))
+# 1. 売上減少
+if st.session_state["sales_decrease_filter"]:
+    def parse_numeric(value):
+        s_clean = re.sub(r"[¥,% ]", "", str(value))
+        try:
+            return float(s_clean)
+        except:
+            return 0.0
+
+    if "変更(売上)" in df.columns:
+        df_filtered = df.copy()
+        df_filtered["val"] = df_filtered["変更(売上)"].apply(parse_numeric)
+        # 変更(売上) <= -20%
+        df_filtered = df_filtered[df_filtered["val"] <= -20].sort_values("val", ascending=True)
+        df = df_filtered.drop(columns=["val"])
+
+# 2. 順位減少
+if st.session_state["rank_decrease_filter"]:
+    def parse_numeric(value):
+        s_clean = re.sub(r"[¥,% ]", "", str(value))
+        try:
+            return float(s_clean)
+        except:
+            return 0.0
+
+    if "比較" in df.columns:
+        df_filtered = df.copy()
+        df_filtered["val"] = df_filtered["比較"].apply(parse_numeric)
+        # 「順位が5以上下がった」＝比較(順位) <= -5
+        df_filtered = df_filtered[df_filtered["val"] <= -5].sort_values("val", ascending=True)
+        df = df_filtered.drop(columns=["val"])
+
+# 3. 順位10-30＋
+if st.session_state["rank_10_30_filter"]:
+    def parse_numeric(value):
+        s_clean = re.sub(r"[^0-9.-]", "", str(value))
+        try:
+            return float(s_clean)
+        except:
+            return 999999
+
+    if "順位" in df.columns:
+        df_filtered = df.copy()
+        df_filtered["val"] = df_filtered["順位"].apply(parse_numeric)
+        # 10 <= 順位 <= 30
+        df_filtered = df_filtered[(df_filtered["val"] >= 10) & (df_filtered["val"] <= 30)]
+        df_filtered = df_filtered.sort_values("val", ascending=True)
+        df = df_filtered.drop(columns=["val"])
+
+# 4. 古い更新日
+if st.session_state["old_update_filter"]:
+    if "最終更新日" in df.columns:
+        df_filtered = df.copy()
+
+        def parse_date(d):
             try:
-                return float(s_clean)
+                return pd.to_datetime(d)
             except:
-                return 0.0
+                return pd.NaT
 
-        if "変更(売上)" in df.columns:
-            df_filtered = df.copy()
-            df_filtered["val"] = df_filtered["変更(売上)"].apply(parse_numeric)
-            df_filtered = df_filtered[df_filtered["val"] <= -20].sort_values("val", ascending=True)
-            df = df_filtered.drop(columns=["val"])
-
-    # 2. 順位減少
-    if st.session_state["rank_decrease_filter"]:
-        def parse_numeric(value):
-            s_clean = re.sub(r"[¥,% ]", "", str(value))
-            try:
-                return float(s_clean)
-            except:
-                return 0.0
-
-        if "比較" in df.columns:
-            df_filtered = df.copy()
-            df_filtered["val"] = df_filtered["比較"].apply(parse_numeric)
-            # 順位が5以上下がった = 比較(順位)が -5 以上
-            df_filtered = df_filtered[df_filtered["val"] >= -5].sort_values("val", ascending=False)
-            df = df_filtered.drop(columns=["val"])
-
-    # 3. 順位10-30＋
-    if st.session_state["rank_10_30_filter"]:
-        def parse_numeric(value):
-            s_clean = re.sub(r"[^0-9.-]", "", str(value))
-            try:
-                return float(s_clean)
-            except:
-                return 999999
-
-        if "順位" in df.columns:
-            df_filtered = df.copy()
-            df_filtered["val"] = df_filtered["順位"].apply(parse_numeric)
-            df_filtered = df_filtered[(df_filtered["val"] >= 10) & (df_filtered["val"] <= 30)]
-            # ソートはご自由に(例:順位昇順)
-            df_filtered = df_filtered.sort_values("val", ascending=True)
-            df = df_filtered.drop(columns=["val"])
-
-    # 4. 古い更新日 (6ヶ月以上前)
-    if st.session_state["old_update_filter"]:
-        if "最終更新日" in df.columns:
-            df_filtered = df.copy()
-
-            # 日付型に変換
-            def parse_date(d):
-                try:
-                    return pd.to_datetime(d)
-                except:
-                    return pd.NaT
-
-            df_filtered["date_val"] = df_filtered["最終更新日"].apply(parse_date)
-            cutoff = pd.Timestamp.now() - pd.DateOffset(months=6)
-            df_filtered = df_filtered[df_filtered["date_val"] <= cutoff]
-            # 古い順にソート
-            df_filtered.sort_values("date_val", ascending=True, inplace=True)
-            df = df_filtered.drop(columns=["date_val"])
-
+        df_filtered["date_val"] = df_filtered["最終更新日"].apply(parse_date)
+        cutoff = pd.Timestamp.now() - pd.DateOffset(months=6)
+        # 6ヶ月以上前
+        df_filtered = df_filtered[df_filtered["date_val"] <= cutoff]
+        df_filtered.sort_values("date_val", ascending=True, inplace=True)
+        df = df_filtered.drop(columns=["date_val"])
+        
     # 色付け + HTML化 (既存処理そのまま)
     def color_plusminus(val, with_yen=False):
         s = str(val).strip()
