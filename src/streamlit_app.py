@@ -48,32 +48,24 @@ def show_sheet1():
     """)
 
     # ▼▼▼ ここに4つのフィルタボタンを新規追加 ▼▼▼
-    fc1, fc2, fc3, fc4 = st.columns([1,1,1,1])
-    with fc1:
-        if st.button("売上減少"):
-            st.session_state["sales_decrease_filter"] = not st.session_state["sales_decrease_filter"]
-            # 他のフィルタOFF（同時併用しない場合）
-            st.session_state["rank_decrease_filter"] = False
-            st.session_state["rank_10_30_filter"]    = False
-            st.session_state["old_update_filter"]    = False
-    with fc2:
-        if st.button("順位減少"):
-            st.session_state["rank_decrease_filter"] = not st.session_state["rank_decrease_filter"]
-            st.session_state["sales_decrease_filter"] = False
-            st.session_state["rank_10_30_filter"]     = False
-            st.session_state["old_update_filter"]     = False
-    with fc3:
-        if st.button("順位10-30＋"):
-            st.session_state["rank_10_30_filter"] = not st.session_state["rank_10_30_filter"]
-            st.session_state["sales_decrease_filter"] = False
-            st.session_state["rank_decrease_filter"]  = False
-            st.session_state["old_update_filter"]     = False
-    with fc4:
-        if st.button("古い更新日"):
-            st.session_state["old_update_filter"] = not st.session_state["old_update_filter"]
-            st.session_state["sales_decrease_filter"] = False
-            st.session_state["rank_decrease_filter"]  = False
-            st.session_state["rank_10_30_filter"]     = False
+fc1, fc2, fc3, fc4 = st.columns(4)
+
+with fc1:
+    st.session_state["sales_decrease_filter"] = st.checkbox(
+        "売上減少", value=st.session_state["sales_decrease_filter"]
+    )
+with fc2:
+    st.session_state["rank_decrease_filter"] = st.checkbox(
+        "順位減少", value=st.session_state["rank_decrease_filter"]
+    )
+with fc3:
+    st.session_state["rank_10_30_filter"] = st.checkbox(
+        "順位10-30＋", value=st.session_state["rank_10_30_filter"]
+    )
+with fc4:
+    st.session_state["old_update_filter"] = st.checkbox(
+        "古い更新日", value=st.session_state["old_update_filter"]
+    )
 
     # ---- ボタン(トラフィック/売上/順位) ----
     c1, c2, c3 = st.columns([1,1,1])
