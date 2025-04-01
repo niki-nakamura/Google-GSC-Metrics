@@ -25,11 +25,13 @@ if "rank_10_30_filter" not in st.session_state:
 if "old_update_filter" not in st.session_state:
     st.session_state["old_update_filter"] = False
 
+
 def load_data() -> pd.DataFrame:
     try:
         return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
     except:
         return pd.DataFrame()
+
 
 def show_sheet1():
     """
@@ -47,25 +49,25 @@ def show_sheet1():
     - **古い更新日:** 最終更新日が 6ヶ月以上前
     """)
 
-    # ▼▼▼ ここに4つのフィルタボタンを新規追加 ▼▼▼
-fc1, fc2, fc3, fc4 = st.columns(4)
+    # ▼▼▼ チェックボックスを配置してフィルタON/OFFを管理 ▼▼▼
+    fc1, fc2, fc3, fc4 = st.columns(4)
 
-with fc1:
-    st.session_state["sales_decrease_filter"] = st.checkbox(
-        "売上減少", value=st.session_state["sales_decrease_filter"]
-    )
-with fc2:
-    st.session_state["rank_decrease_filter"] = st.checkbox(
-        "順位減少", value=st.session_state["rank_decrease_filter"]
-    )
-with fc3:
-    st.session_state["rank_10_30_filter"] = st.checkbox(
-        "順位10-30＋", value=st.session_state["rank_10_30_filter"]
-    )
-with fc4:
-    st.session_state["old_update_filter"] = st.checkbox(
-        "古い更新日", value=st.session_state["old_update_filter"]
-    )
+    with fc1:
+        st.session_state["sales_decrease_filter"] = st.checkbox(
+            "売上減少", value=st.session_state["sales_decrease_filter"]
+        )
+    with fc2:
+        st.session_state["rank_decrease_filter"] = st.checkbox(
+            "順位減少", value=st.session_state["rank_decrease_filter"]
+        )
+    with fc3:
+        st.session_state["rank_10_30_filter"] = st.checkbox(
+            "順位10-30＋", value=st.session_state["rank_10_30_filter"]
+        )
+    with fc4:
+        st.session_state["old_update_filter"] = st.checkbox(
+            "古い更新日", value=st.session_state["old_update_filter"]
+        )
 
     # ---- ボタン(トラフィック/売上/順位) ----
     c1, c2, c3 = st.columns([1,1,1])
@@ -76,6 +78,7 @@ with fc4:
     with c3:
         rank_btn    = st.button("順位")
 
+    # ---- データ読み込み ----
     df = load_data()
     if df.empty:
         st.warning("CSVが空、またはまだデータがありません。")
@@ -209,6 +212,7 @@ with fc4:
         st.session_state["traffic_sort_state"] = 0
         st.session_state["sales_sort_state"]   = 0
 
+    # どれかに当てはまったらソート
     if st.session_state["traffic_sort_state"] == 1:
         if "トラフィック" in df.columns:
             df.sort_values(by="トラフィック", ascending=False, inplace=True)
@@ -282,7 +286,6 @@ with fc4:
     if st.session_state["old_update_filter"]:
         if "最終更新日" in df.columns:
             df_filtered = df.copy()
-
             def parse_date(d):
                 try:
                     return pd.to_datetime(d)
