@@ -262,8 +262,8 @@ def show_sheet1():
         if "比較" in df.columns:
             df_filtered = df.copy()
             df_filtered["val"] = df_filtered["比較"].apply(parse_numeric)
-            # 順位が5以上下がった = 比較(順位)が +5 以上
-            df_filtered = df_filtered[df_filtered["val"] >= 5].sort_values("val", ascending=False)
+            # 順位が5以上下がった = 比較(順位)が -5 以上
+            df_filtered = df_filtered[df_filtered["val"] >= -5].sort_values("val", ascending=False)
             df = df_filtered.drop(columns=["val"])
 
     # 3. 順位10-30＋
