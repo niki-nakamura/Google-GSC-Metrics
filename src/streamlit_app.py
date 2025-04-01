@@ -110,22 +110,23 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    # リネームマップ (変更なし)
-rename_map = {
-    "SEO対策KW": "トップキーワード",
-    "7日間平均順位": "順位",
-    "30日間平均順位": "順位（30日）",
-    "session": "トラフィック",
-    "session_30d": "トラフィック（30日間）",
-    "traffic_change_7d_vs_30d": "変更(トラフィック)",
-    "sales_7d": "売上",
-    "sales_30d": "売上（30日間）",
-    "sales_change_7d_vs_30d": "変更(売上)",
-    "post_title": "seo_title",
-    "比較（7日間が良ければ＋）": "比較",
-    "modified": "最終更新日"
-}
+    # リネームマップ (追加: "modified": "最終更新日")
+    rename_map = {
+        "SEO対策KW": "トップキーワード",
+        "7日間平均順位": "順位",
+        "30日間平均順位": "順位（30日）",
+        "session": "トラフィック",
+        "session_30d": "トラフィック（30日間）",
+        "traffic_change_7d_vs_30d": "変更(トラフィック)",
+        "sales_7d": "売上",
+        "sales_30d": "売上（30日間）",
+        "sales_change_7d_vs_30d": "変更(売上)",
+        "post_title": "seo_title",
+        "比較（7日間が良ければ＋）": "比較",
+        "modified": "最終更新日"
+    }
 
+    # ▼▼▼ インデントを修正: forループは上のブロックに含まれる ▼▼▼
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
@@ -145,19 +146,19 @@ rename_map = {
         df.drop(columns=["seo_title"], inplace=True)
 
     final_cols = [
-    "URL",
-    "トラフィック",
-    "トラフィック（30日間）",
-    "変更(トラフィック)",
-    "売上",
-    "売上（30日間）",
-    "変更(売上)",
-    "トップキーワード",
-    "順位",
-    "順位（30日）",
-    "比較",
-    "最終更新日"
-]
+        "URL",
+        "トラフィック",
+        "トラフィック（30日間）",
+        "変更(トラフィック)",
+        "売上",
+        "売上（30日間）",
+        "変更(売上)",
+        "トップキーワード",
+        "順位",
+        "順位（30日）",
+        "比較",
+        "最終更新日"
+    ]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
@@ -175,21 +176,18 @@ rename_map = {
         st.session_state["traffic_sort_state"] = 0
         st.session_state["sales_sort_state"]   = 0
 
-    # traffic_sort_state
     if st.session_state["traffic_sort_state"] == 1:
         if "トラフィック" in df.columns:
             df.sort_values(by="トラフィック", ascending=False, inplace=True)
     elif st.session_state["traffic_sort_state"] == 2:
         if "トラフィック" in df.columns:
             df.sort_values(by="トラフィック", ascending=True, inplace=True)
-    # sales_sort_state
     elif st.session_state["sales_sort_state"] == 1:
         if "売上" in df.columns:
             df.sort_values(by="売上", ascending=False, inplace=True)
     elif st.session_state["sales_sort_state"] == 2:
         if "売上" in df.columns:
             df.sort_values(by="売上", ascending=True, inplace=True)
-    # rank_sort_state
     elif st.session_state["rank_sort_state"] == 1:
         if "順位" in df.columns:
             df.sort_values(by="順位", ascending=False, inplace=True)
@@ -197,7 +195,7 @@ rename_map = {
         if "順位" in df.columns:
             df.sort_values(by="順位", ascending=True, inplace=True)
 
-    # 以下 color_plusminus + HTML化
+    # 色付け + HTML化 (変更なし)
     def color_plusminus(val, with_yen=False):
         s = str(val).strip()
         s_clean = re.sub(r"[¥, ]", "", s)
@@ -255,7 +253,6 @@ rename_map = {
 ###################################
 # (Hidden) README doc
 ###################################
-
 
 README_TEXT = """\
 
