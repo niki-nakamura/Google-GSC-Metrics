@@ -9,7 +9,7 @@ st.set_page_config(layout="wide")
 
 # ▼▼▼ ソート状態管理 (変更なし) ▼▼▼
 if "traffic_sort_state" not in st.session_state:
-    st.session_state["traffic_sort_state"] = 0  # 0:元表示 1:降順 2:昇順
+    st.session_state["traffic_sort_state"] = 0
 if "sales_sort_state" not in st.session_state:
     st.session_state["sales_sort_state"] = 0
 if "rank_sort_state" not in st.session_state:
@@ -38,14 +38,15 @@ def show_sheet1():
 
     st.subheader("上位ページ")
 
-# ▼ 短めの説明 (メモ表示)
-st.info("""
-**フィルタボタンの定義**  
-- **売上減少:** 変更(売上)が -20% 以下  
-- **順位減少:** 比較(順位)が -5 以下  
-- **順位10-30＋:** 最新順位が 10〜30 の記事を抽出  
-- **古い更新日:** 最終更新日が 6ヶ月以上前
-""")
+    # ▼ 短めの説明 (メモ表示) ▼
+    st.info("""
+    **フィルタボタンの定義**  
+    - **売上減少:** 変更(売上)が -20% 以下  
+    - **順位減少:** 比較(順位)が -5 以下  
+    - **順位10-30＋:** 最新順位が 10〜30 の記事を抽出  
+    - **古い更新日:** 最終更新日が 6ヶ月以上前
+    """)
+
     # ▼▼▼ ここに4つのフィルタボタンを新規追加 ▼▼▼
     fc1, fc2, fc3, fc4 = st.columns([1,1,1,1])
     with fc1:
