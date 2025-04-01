@@ -15,6 +15,16 @@ if "sales_sort_state" not in st.session_state:
 if "rank_sort_state" not in st.session_state:
     st.session_state["rank_sort_state"] = 0
 
+# ▼▼▼ 追加: フィルタ状態管理 ▼▼▼
+if "sales_decrease_filter" not in st.session_state:
+    st.session_state["sales_decrease_filter"] = False
+if "rank_decrease_filter" not in st.session_state:
+    st.session_state["rank_decrease_filter"] = False
+if "rank_10_30_filter" not in st.session_state:
+    st.session_state["rank_10_30_filter"] = False
+if "old_update_filter" not in st.session_state:
+    st.session_state["old_update_filter"] = False
+
 def load_data() -> pd.DataFrame:
     try:
         return pd.read_csv("sheet_query_data.csv", encoding="utf-8-sig")
@@ -27,6 +37,35 @@ def show_sheet1():
     """
 
     st.subheader("上位ページ")
+
+    # ▼▼▼ ここに4つのフィルタボタンを新規追加 ▼▼▼
+    fc1, fc2, fc3, fc4 = st.columns([1,1,1,1])
+    with fc1:
+        if st.button("売上減少"):
+            # トグル
+            st.session_state["sales_decrease_filter"] = not st.session_state["sales_decrease_filter"]
+            # 他はオフにしても良い(同時併用しない場合) ※必要に応じてコメントアウトしてください
+            st.session_state["rank_decrease_filter"] = False
+            st.session_state["rank_10_30_filter"] = False
+            st.session_state["old_update_filter"] = False
+    with fc2:
+        if st.button("順位減少"):
+            st.session_state["rank_decrease_filter"] = not st.session_state["rank_decrease_filter"]
+            st.session_state["sales_decrease_filter"] = False
+            st.session_state["rank_10_30_filter"] = False
+            st.session_state["old_update_filter"] = False
+    with fc3:
+        if st.button("順位10-30＋"):
+            st.session_state["rank_10_30_filter"] = not st.session_state["rank_10_30_filter"]
+            st.session_state["sales_decrease_filter"] = False
+            st.session_state["rank_decrease_filter"] = False
+            st.session_state["old_update_filter"] = False
+    with fc4:
+        if st.button("古い更新日"):
+            st.session_state["old_update_filter"] = not st.session_state["old_update_filter"]
+            st.session_state["sales_decrease_filter"] = False
+            st.session_state["rank_decrease_filter"] = False
+            st.session_state["rank_10_30_filter"] = False
 
     # ---- ボタン(トラフィック/売上/順位) ----
     c1, c2, c3 = st.columns([1,1,1])
@@ -110,7 +149,7 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    # リネームマップ (追加: "modified": "最終更新日")
+    # リネームマップ
     rename_map = {
         "SEO対策KW": "トップキーワード",
         "7日間平均順位": "順位",
@@ -126,7 +165,6 @@ def show_sheet1():
         "modified": "最終更新日"
     }
 
-    # ▼▼▼ インデント修正: forループは関数内で実行 ▼▼▼
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
@@ -162,7 +200,7 @@ def show_sheet1():
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
-    # ▼▼▼ ソート制御 ▼▼▼
+    # ▼▼▼ まずは既存のソートボタン制御 (変更なし) ▼▼▼
     if traffic_btn:
         st.session_state["traffic_sort_state"] = (st.session_state["traffic_sort_state"] + 1) % 3
         st.session_state["sales_sort_state"] = 0
@@ -195,7 +233,76 @@ def show_sheet1():
         if "順位" in df.columns:
             df.sort_values(by="順位", ascending=True, inplace=True)
 
-    # 色付け + HTML化 (変更なし)
+    # ▼▼▼ フィルタ適用ロジック ▼▼▼
+    # 1. 売上減少
+    if st.session_state["sales_decrease_filter"]:
+        # 数値をパースして -20 以下のみ抽出し、より減少率が大きい順(昇順)に
+        def parse_numeric(value):
+            s_clean = re.sub(r"[¥,% ]", "", str(value))
+            try:
+                return float(s_clean)
+            except:
+                return 0.0
+
+        if "変更(売上)" in df.columns:
+            df_filtered = df.copy()
+            df_filtered["val"] = df_filtered["変更(売上)"].apply(parse_numeric)
+            df_filtered = df_filtered[df_filtered["val"] <= -20].sort_values("val", ascending=True)
+            df = df_filtered.drop(columns=["val"])
+
+    # 2. 順位減少
+    if st.session_state["rank_decrease_filter"]:
+        def parse_numeric(value):
+            s_clean = re.sub(r"[¥,% ]", "", str(value))
+            try:
+                return float(s_clean)
+            except:
+                return 0.0
+
+        if "比較" in df.columns:
+            df_filtered = df.copy()
+            df_filtered["val"] = df_filtered["比較"].apply(parse_numeric)
+            # 順位が5以上下がった = 比較(順位)が +5 以上
+            df_filtered = df_filtered[df_filtered["val"] >= 5].sort_values("val", ascending=False)
+            df = df_filtered.drop(columns=["val"])
+
+    # 3. 順位10-30＋
+    if st.session_state["rank_10_30_filter"]:
+        def parse_numeric(value):
+            s_clean = re.sub(r"[^0-9.-]", "", str(value))
+            try:
+                return float(s_clean)
+            except:
+                return 999999
+
+        if "順位" in df.columns:
+            df_filtered = df.copy()
+            df_filtered["val"] = df_filtered["順位"].apply(parse_numeric)
+            df_filtered = df_filtered[(df_filtered["val"] >= 10) & (df_filtered["val"] <= 30)]
+            # ソートはご自由に(例:順位昇順)
+            df_filtered = df_filtered.sort_values("val", ascending=True)
+            df = df_filtered.drop(columns=["val"])
+
+    # 4. 古い更新日 (6ヶ月以上前)
+    if st.session_state["old_update_filter"]:
+        if "最終更新日" in df.columns:
+            df_filtered = df.copy()
+
+            # 日付型に変換
+            def parse_date(d):
+                try:
+                    return pd.to_datetime(d)
+                except:
+                    return pd.NaT
+
+            df_filtered["date_val"] = df_filtered["最終更新日"].apply(parse_date)
+            cutoff = pd.Timestamp.now() - pd.DateOffset(months=6)
+            df_filtered = df_filtered[df_filtered["date_val"] <= cutoff]
+            # 古い順にソート
+            df_filtered.sort_values("date_val", ascending=True, inplace=True)
+            df = df_filtered.drop(columns=["date_val"])
+
+    # 色付け + HTML化 (既存処理そのまま)
     def color_plusminus(val, with_yen=False):
         s = str(val).strip()
         s_clean = re.sub(r"[¥, ]", "", s)
