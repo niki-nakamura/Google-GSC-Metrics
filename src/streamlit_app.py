@@ -28,6 +28,17 @@ def show_sheet1():
 
     st.subheader("上位ページ")
 
+    # ▼▼▼ 追加：4つのフィルタボタンを配置 ▼▼▼
+    fcol1, fcol2, fcol3, fcol4 = st.columns(4)
+    with fcol1:
+        filter_sales_down = st.button("売上減少")
+    with fcol2:
+        filter_rank_down = st.button("順位減少")
+    with fcol3:
+        filter_rank_10_30 = st.button("順位10-30＋")
+    with fcol4:
+        filter_old_update = st.button("古い更新日")
+
     # ---- ボタン(トラフィック/売上/順位) ----
     c1, c2, c3 = st.columns([1,1,1])
     with c1:
@@ -67,7 +78,6 @@ def show_sheet1():
             font-weight: bold;
             padding: 8px;
             border-bottom: 1px solid #ddd;
-            /* ヘッダは改行せずスクロール */
         }
         table.ahrefs-table thead th .header-content {
             display: inline-block;
@@ -85,7 +95,6 @@ def show_sheet1():
             padding: 6px 8px;
             border-bottom: 1px solid #ddd;
             vertical-align: middle;
-            /* ここは改行可のまま (変更なし) */
             white-space: normal;
             word-wrap: break-word;
             overflow-wrap: break-word;
@@ -126,12 +135,11 @@ def show_sheet1():
         "modified": "最終更新日"
     }
 
-    # ▼▼▼ インデント修正: forループは関数内で実行 ▼▼▼
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
-    # URL + seo_title
+    # URL + seo_title をまとめる
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
             title_esc = html.escape(str(row["seo_title"]))
@@ -161,6 +169,34 @@ def show_sheet1():
     ]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
+
+    # ▼▼▼ 追加：フィルタ用の前処理 (数値/日付型に変換) ▼▼▼
+    if "変更(売上)" in df.columns:
+        df["変更(売上)"] = pd.to_numeric(df["変更(売上)"], errors="coerce")
+    if "比較" in df.columns:
+        df["比較"] = pd.to_numeric(df["比較"], errors="coerce")
+    if "順位" in df.columns:
+        df["順位"] = pd.to_numeric(df["順位"], errors="coerce")
+    if "最終更新日" in df.columns:
+        df["最終更新日"] = pd.to_datetime(df["最終更新日"], errors="coerce")
+
+    # ▼▼▼ 追加：ボタンが押されたらフィルタを実行 ▼▼▼
+    if filter_sales_down and "変更(売上)" in df.columns:
+        # 売上が大きく減少 (変更(売上) <= -20%)
+        df = df[df["変更(売上)"] <= -20]
+
+    if filter_rank_down and "比較" in df.columns:
+        # 順位が大きく下がった (比較(順位) >= +5)
+        df = df[df["比較"] >= 5]
+
+    if filter_rank_10_30 and "順位" in df.columns:
+        # 検索結果10～30位 (10 <= 最新順位 <= 30)
+        df = df[(df["順位"] >= 10) & (df["順位"] <= 30)]
+
+    if filter_old_update and "最終更新日" in df.columns:
+        # 最終更新日が6ヶ月以上前
+        cutoff_date = pd.Timestamp.now() - pd.DateOffset(months=6)
+        df = df[df["最終更新日"] <= cutoff_date]
 
     # ▼▼▼ ソート制御 ▼▼▼
     if traffic_btn:
@@ -195,7 +231,7 @@ def show_sheet1():
         if "順位" in df.columns:
             df.sort_values(by="順位", ascending=True, inplace=True)
 
-    # 色付け + HTML化 (変更なし)
+    # ▼▼▼ 色付け + HTML化 ▼▼▼
     def color_plusminus(val, with_yen=False):
         s = str(val).strip()
         s_clean = re.sub(r"[¥, ]", "", s)
