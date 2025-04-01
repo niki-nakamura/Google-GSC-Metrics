@@ -111,19 +111,21 @@ def show_sheet1():
     )
 
     # リネームマップ (変更なし)
-    rename_map = {
-        "SEO対策KW": "トップキーワード",
-        "7日間平均順位": "順位",
-        "30日間平均順位": "順位（30日）",
-        "session": "トラフィック",
-        "session_30d": "トラフィック（30日間）",
-        "traffic_change_7d_vs_30d": "変更(トラフィック)",
-        "sales_7d": "売上",
-        "sales_30d": "売上（30日間）",
-        "sales_change_7d_vs_30d": "変更(売上)",
-        "post_title": "seo_title",
-        "比較（7日間が良ければ＋）": "比較"
-    }
+rename_map = {
+    "SEO対策KW": "トップキーワード",
+    "7日間平均順位": "順位",
+    "30日間平均順位": "順位（30日）",
+    "session": "トラフィック",
+    "session_30d": "トラフィック（30日間）",
+    "traffic_change_7d_vs_30d": "変更(トラフィック)",
+    "sales_7d": "売上",
+    "sales_30d": "売上（30日間）",
+    "sales_change_7d_vs_30d": "変更(売上)",
+    "post_title": "seo_title",
+    "比較（7日間が良ければ＋）": "比較",
+    "modified": "最終更新日"
+}
+
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
@@ -143,18 +145,19 @@ def show_sheet1():
         df.drop(columns=["seo_title"], inplace=True)
 
     final_cols = [
-        "URL",
-        "トラフィック",
-        "トラフィック（30日間）",
-        "変更(トラフィック)",
-        "売上",
-        "売上（30日間）",
-        "変更(売上)",
-        "トップキーワード",
-        "順位",
-        "順位（30日）",
-        "比較"
-    ]
+    "URL",
+    "トラフィック",
+    "トラフィック（30日間）",
+    "変更(トラフィック)",
+    "売上",
+    "売上（30日間）",
+    "変更(売上)",
+    "トップキーワード",
+    "順位",
+    "順位（30日）",
+    "比較",
+    "最終更新日"
+]
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
