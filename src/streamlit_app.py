@@ -126,7 +126,7 @@ def show_sheet1():
         "modified": "最終更新日"
     }
 
-    # ▼▼▼ インデントを修正: forループは上のブロックに含まれる ▼▼▼
+    # ▼▼▼ インデント修正: forループは関数内で実行 ▼▼▼
     for oldcol, newcol in rename_map.items():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
@@ -247,7 +247,7 @@ def show_sheet1():
         new_headers.append(f'<div class="header-content">{html.escape(c_strip)}</div>')
     df.columns = new_headers
 
-    html_table = df.to_html(index=False, escape=False, classes=["ahrefs-table", "sortable"])
+    html_table = df.to_html(index=False, escape=False, classes=["ahrefs-table","sortable"])
     st.write(html_table, unsafe_allow_html=True)
 
 ###################################
