@@ -34,6 +34,9 @@ def load_data() -> pd.DataFrame:
 
 
 def show_sheet1():
+    """
+    表の形式は一切変更せず、ヘッダのoverflow + color分けを再適用。
+    """
 
     st.subheader("上位ページ")
 
@@ -68,12 +71,16 @@ def show_sheet1():
 
     # ▼▼▼ 閾値入力 ▼▼▼
     sales_threshold = st.number_input(
-        "売上変化閾値(円)", value=None, step=1000, format="%d",
-        help="ここに数値を入れると、変更(売上)がその閾値以上の行だけ表示します。"
+        "売上変化閾値(円)",
+        value=0,
+        step=1000
     )
     rank_threshold = st.number_input(
-        "順位減少閾値", value=None, step=1.0, format="%.2f",
-        help="ここに数値を入れると、比較(順位)がその閾値以上の行だけ表示します。"
+        "順位減少閾値",
+        min_value=-100.0,
+        max_value=100.0,
+        value=-5.0,
+        step=1.0
     )
     
     # ---- ボタン(トラフィック/売上/順位) ----
