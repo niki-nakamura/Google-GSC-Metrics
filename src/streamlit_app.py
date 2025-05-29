@@ -69,6 +69,22 @@ def show_sheet1():
             "古い更新日", value=st.session_state["old_update_filter"]
         )
 
+    # ▼▼▼ 閾値入力 ▼▼▼
+    sales_threshold = st.number_input(
+        "売上減少閾値(％)",
+        min_value=-100.0,
+        max_value=0.0,
+        value=-20.0,
+        step=1.0
+    )
+    rank_threshold = st.number_input(
+        "順位減少閾値",
+        min_value=-100.0,
+        max_value=100.0,
+        value=-5.0,
+        step=1.0
+    )
+    
     # ---- ボタン(トラフィック/売上/順位) ----
     c1, c2, c3 = st.columns([1,1,1])
     with c1:
