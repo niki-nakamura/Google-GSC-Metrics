@@ -71,11 +71,9 @@ def show_sheet1():
 
     # ▼▼▼ 閾値入力 ▼▼▼
     sales_threshold = st.number_input(
-        "売上減少閾値(％)",
-        min_value=-100.0,
-        max_value=0.0,
-        value=-20.0,
-        step=1.0
+        "売上変化閾値(円)",
+        value=0,
+        step=1000
     )
     rank_threshold = st.number_input(
         "順位減少閾値",
