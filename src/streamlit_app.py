@@ -83,7 +83,7 @@ def show_sheet1():
     sales_threshold = st.number_input(
         "売上変化閾値(円) (追加機能)",
         value=0.0,  # 初期値0
-        step=1000.0
+        step=100.0
     )
     rank_threshold = st.number_input(
         "順位減少閾値 (追加機能)",
