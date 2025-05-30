@@ -15,7 +15,11 @@ if "sales_sort_state" not in st.session_state:
 if "rank_sort_state" not in st.session_state:
     st.session_state["rank_sort_state"] = 0
 
-# ▼▼▼ 追加: フィルタ状態管理 (ここでは rank_10_30_filter, old_update_filter のみ継続) ▼▼▼
+# ▼▼▼ 追加: フィルタ状態管理 ▼▼▼
+if "sales_decrease_filter" not in st.session_state:
+    st.session_state["sales_decrease_filter"] = False
+if "rank_decrease_filter" not in st.session_state:
+    st.session_state["rank_decrease_filter"] = False
 if "rank_10_30_filter" not in st.session_state:
     st.session_state["rank_10_30_filter"] = False
 if "old_update_filter" not in st.session_state:
@@ -38,29 +42,32 @@ def show_sheet1():
 
     # ▼ 短めの説明 (メモ表示) ▼
     st.info("""
-    **フィルタ機能について**  
-    - **売上変化閾値(円)** を入力すると、列「変更(売上)」がその値以下のものを抽出し、非数値は除外  
-    - **順位減少閾値** を入力すると、列「比較(順位)」がその値以下のものを抽出し、非数値は除外  
+    **フィルタボタンの定義**  
+    - **売上減少:** 変更(売上)が -20% 以下  
+    - **順位減少:** 比較(順位)が -5 以下  
     - **順位10-30＋:** 最新順位が 10〜30 の記事を抽出  
     - **古い更新日:** 最終更新日が 6ヶ月以上前
     """)
-    
-    # ▼▼▼ 閾値入力 (数値を入れるだけで自動的にフィルタ適用) ▼▼▼
-    st.write("**自動フィルタ**")
-    sales_threshold = st.number_input(
-        "売上変化閾値(円) 例:-20, -500, 0等",
-        value=-20.0,
-        step=1000.0
-    )
-    rank_threshold = st.number_input(
-        "順位減少閾値 例:-5, -10等(マイナス値が減少を意味)",
-        min_value=-100.0,
-        max_value=100.0,
-        value=-5.0,
-        step=1.0
-    )
 
-    st.write("---")
+    # ▼▼▼ チェックボックスを配置してフィルタON/OFFを管理 ▼▼▼
+    fc1, fc2, fc3, fc4 = st.columns(4)
+
+    with fc1:
+        st.session_state["sales_decrease_filter"] = st.checkbox(
+            "売上減少", value=st.session_state["sales_decrease_filter"]
+        )
+    with fc2:
+        st.session_state["rank_decrease_filter"] = st.checkbox(
+            "順位減少", value=st.session_state["rank_decrease_filter"]
+        )
+    with fc3:
+        st.session_state["rank_10_30_filter"] = st.checkbox(
+            "順位10-30＋", value=st.session_state["rank_10_30_filter"]
+        )
+    with fc4:
+        st.session_state["old_update_filter"] = st.checkbox(
+            "古い更新日", value=st.session_state["old_update_filter"]
+        )
 
     # ---- ボタン(トラフィック/売上/順位) ----
     c1, c2, c3 = st.columns([1,1,1])
@@ -141,7 +148,7 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    # ▼▼▼ カラム名の置き換え (リネーム) ▼▼▼
+    # リネームマップ
     rename_map = {
         "SEO対策KW": "トップキーワード",
         "7日間平均順位": "順位",
@@ -160,7 +167,7 @@ def show_sheet1():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
-    # ▼▼▼ URL + seo_title を結合して1カラムに ▼▼▼
+    # URL + seo_title を結合
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
             title_esc = html.escape(str(row["seo_title"]))
@@ -174,7 +181,6 @@ def show_sheet1():
         df["URL"] = df.apply(combine_title_url, axis=1)
         df.drop(columns=["seo_title"], inplace=True)
 
-    # ▼▼▼ 表示したい列順に並び替え ▼▼▼
     final_cols = [
         "URL",
         "トラフィック",
@@ -192,7 +198,7 @@ def show_sheet1():
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
-    # ▼▼▼ ソートボタン制御 ▼▼▼
+    # ▼▼▼ 既存のソートボタン制御 ▼▼▼
     if traffic_btn:
         st.session_state["traffic_sort_state"] = (st.session_state["traffic_sort_state"] + 1) % 3
         st.session_state["sales_sort_state"]   = 0
@@ -206,6 +212,7 @@ def show_sheet1():
         st.session_state["traffic_sort_state"] = 0
         st.session_state["sales_sort_state"]   = 0
 
+    # どれかに当てはまったらソート
     if st.session_state["traffic_sort_state"] == 1:
         if "トラフィック" in df.columns:
             df.sort_values(by="トラフィック", ascending=False, inplace=True)
@@ -225,78 +232,81 @@ def show_sheet1():
         if "順位" in df.columns:
             df.sort_values(by="順位", ascending=True, inplace=True)
 
-    # ▼▼▼ 1. 売上変化閾値によるフィルタ (非数値は除外) ▼▼▼
-    if "変更(売上)" in df.columns:
-        def parse_sales_numeric(value):
-            s_clean = re.sub(r"[¥,%\s]", "", str(value))
+    # ▼▼▼ フィルタ適用ロジック ▼▼▼
+
+    # 1. 売上減少
+    if st.session_state["sales_decrease_filter"]:
+        def parse_numeric(value):
+            s_clean = re.sub(r"[¥,% ]", "", str(value))
             try:
                 return float(s_clean)
             except:
-                return None  # 非数値→None
+                return 0.0
 
-        df["__sales_val"] = df["変更(売上)"].apply(parse_sales_numeric)
-        # 非数値は除外
-        df = df[df["__sales_val"].notna()]
-        # 閾値以下のみ残す
-        df = df[df["__sales_val"] <= sales_threshold]
-        df.drop(columns=["__sales_val"], inplace=True)
+        if "変更(売上)" in df.columns:
+            df_filtered = df.copy()
+            df_filtered["val"] = df_filtered["変更(売上)"].apply(parse_numeric)
+            df_filtered = df_filtered[df_filtered["val"] <= -20].sort_values("val", ascending=True)
+            df = df_filtered.drop(columns=["val"])
 
-    # ▼▼▼ 2. 順位減少閾値によるフィルタ (非数値は除外) ▼▼▼
-    if "比較" in df.columns:
-        def parse_rank_numeric(value):
+    # 2. 順位減少
+    if st.session_state["rank_decrease_filter"]:
+        def parse_numeric(value):
+            s_clean = re.sub(r"[¥,% ]", "", str(value))
+            try:
+                return float(s_clean)
+            except:
+                return 0.0
+
+        if "比較" in df.columns:
+            df_filtered = df.copy()
+            df_filtered["val"] = df_filtered["比較"].apply(parse_numeric)
+            # 「順位が5以上下がった」 => 比較(順位) <= -5
+            df_filtered = df_filtered[df_filtered["val"] <= -5].sort_values("val", ascending=True)
+            df = df_filtered.drop(columns=["val"])
+
+    # 3. 順位10-30＋
+    if st.session_state["rank_10_30_filter"]:
+        def parse_numeric(value):
             s_clean = re.sub(r"[^0-9.-]", "", str(value))
             try:
                 return float(s_clean)
             except:
-                return None  # 非数値→None
+                return 999999
 
-        df["__rank_val"] = df["比較"].apply(parse_rank_numeric)
-        # 非数値は除外
-        df = df[df["__rank_val"].notna()]
-        # 閾値以下のみ残す
-        df = df[df["__rank_val"] <= rank_threshold]
-        df.drop(columns=["__rank_val"], inplace=True)
-
-    # ▼▼▼ 3. 順位10-30＋ (チェックボックス) ▼▼▼
-    if st.session_state["rank_10_30_filter"]:
         if "順位" in df.columns:
-            def parse_numeric(value):
-                s_clean = re.sub(r"[^0-9.-]", "", str(value))
-                try:
-                    return float(s_clean)
-                except:
-                    return None
-            df["__pos_val"] = df["順位"].apply(parse_numeric)
-            df = df[df["__pos_val"].notna()]
-            df = df[(df["__pos_val"] >= 10) & (df["__pos_val"] <= 30)]
-            df.sort_values("__pos_val", ascending=True, inplace=True)
-            df.drop(columns=["__pos_val"], inplace=True)
+            df_filtered = df.copy()
+            df_filtered["val"] = df_filtered["順位"].apply(parse_numeric)
+            # 10 <= 順位 <= 30
+            df_filtered = df_filtered[(df_filtered["val"] >= 10) & (df_filtered["val"] <= 30)]
+            df_filtered = df_filtered.sort_values("val", ascending=True)
+            df = df_filtered.drop(columns=["val"])
 
-    # ▼▼▼ 4. 古い更新日 (チェックボックス) ▼▼▼
+    # 4. 古い更新日
     if st.session_state["old_update_filter"]:
         if "最終更新日" in df.columns:
+            df_filtered = df.copy()
             def parse_date(d):
                 try:
                     return pd.to_datetime(d)
                 except:
                     return pd.NaT
-            df["__date_val"] = df["最終更新日"].apply(parse_date)
-            cutoff = pd.Timestamp.now() - pd.DateOffset(months=6)
-            df = df[df["__date_val"] <= cutoff]
-            df.sort_values("__date_val", ascending=True, inplace=True)
-            df.drop(columns=["__date_val"], inplace=True)
 
-    # ▼▼▼ 色付け + HTML化 (既存処理踏襲) ▼▼▼
+            df_filtered["date_val"] = df_filtered["最終更新日"].apply(parse_date)
+            cutoff = pd.Timestamp.now() - pd.DateOffset(months=6)
+            df_filtered = df_filtered[df_filtered["date_val"] <= cutoff]
+            df_filtered.sort_values("date_val", ascending=True, inplace=True)
+            df = df_filtered.drop(columns=["date_val"])
+
+    # 色付け + HTML化 (既存処理そのまま)
     def color_plusminus(val, with_yen=False):
         s = str(val).strip()
-        s_clean = re.sub(r"[¥,\s]", "", s)
+        s_clean = re.sub(r"[¥, ]", "", s)
         try:
             x = float(s_clean)
         except:
-            # 数値化できなければそのまま表示
             return f'<div class="cell-content">{html.escape(s)}</div>'
 
-        # 符号表示
         if x > 0:
             sign_str = f'+{x}'
         elif x < 0:
@@ -304,7 +314,6 @@ def show_sheet1():
         else:
             sign_str = '0'
 
-        # 円表記にする場合
         if with_yen:
             if x > 0:
                 sign_str = f'¥+{abs(x)}'
@@ -313,7 +322,6 @@ def show_sheet1():
             else:
                 sign_str = '¥0'
 
-        # カラーリング
         if x > 0:
             return f'<div class="cell-content pos-change">{sign_str}</div>'
         elif x < 0:
@@ -322,19 +330,12 @@ def show_sheet1():
             return f'<div class="cell-content">{sign_str}</div>'
 
     if "変更(トラフィック)" in df.columns:
-        df["変更(トラフィック)"] = df["変更(トラフィック)"].apply(
-            lambda v: color_plusminus(v, with_yen=False)
-        )
+        df["変更(トラフィック)"] = df["変更(トラフィック)"].apply(lambda v: color_plusminus(v, with_yen=False))
     if "変更(売上)" in df.columns:
-        df["変更(売上)"] = df["変更(売上)"].apply(
-            lambda v: color_plusminus(v, with_yen=True)
-        )
+        df["変更(売上)"] = df["変更(売上)"].apply(lambda v: color_plusminus(v, with_yen=True))
     if "比較" in df.columns:
-        df["比較"] = df["比較"].apply(
-            lambda v: color_plusminus(v, with_yen=False)
-        )
+        df["比較"] = df["比較"].apply(lambda v: color_plusminus(v, with_yen=False))
 
-    # その他カラムは標準の cell-content 包み
     def wrap_cell(v):
         return f'<div class="cell-content">{html.escape(str(v))}</div>'
 
@@ -343,18 +344,14 @@ def show_sheet1():
         if c not in skip_cols:
             df[c] = df[c].apply(wrap_cell)
 
-    # ▼▼▼ テーブル出力用にヘッダをHTML化 ▼▼▼
     new_headers = []
     for c in df.columns:
-        # 余分なタグを除去
         c_strip = c.replace('<div class="cell-content">','').replace('</div>','')
         new_headers.append(f'<div class="header-content">{html.escape(c_strip)}</div>')
     df.columns = new_headers
 
-    # HTMLテーブル化して表示
     html_table = df.to_html(index=False, escape=False, classes=["ahrefs-table","sortable"])
     st.write(html_table, unsafe_allow_html=True)
-
 
 ###################################
 # (Hidden) README doc
