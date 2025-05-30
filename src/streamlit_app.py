@@ -73,7 +73,9 @@ def show_sheet1():
     st.write("---")
     st.info("""
     **自動フィルタ(追加機能)**  
-    - **売上変化閾値(円)** を入力すると、列「変更(売上)」がその値以下のものを抽出  
+    - **売上変化閾値(円)** を入力すると、列「変更(売上)」が  
+      　・閾値が **正** ⇒ その値「以上」の行を抽出  
+      　・閾値が **負** ⇒ その値「以下」の行を抽出  
       (非数値は除外)  
     - **順位減少閾値** を入力すると、列「比較(順位)」がその値以下のものを抽出  
       (非数値は除外)  
@@ -323,9 +325,9 @@ def show_sheet1():
             df_filtered.sort_values("date_val", ascending=True, inplace=True)
             df = df_filtered.drop(columns=["date_val"])
 
-    # ▼▼▼ (B) 新たに追加された自動フィルタ（閾値が0以外のときのみ適用）▼▼▼
+    # ▼▼▼ (B) 新たに追加された自動フィルタ（売上変化閾値/順位減少閾値） ▼▼▼
 
-    # 売上変化閾値が0以外ならフィルタを適用
+    # 売上変化閾値が 0 以外ならフィルタを適用
     if "変更(売上)" in df.columns and sales_threshold != 0:
         def parse_sales_numeric(value):
             s_clean = re.sub(r"[¥,%\s]", "", str(value))
@@ -333,14 +335,21 @@ def show_sheet1():
                 return float(s_clean)
             except:
                 return None  # 非数値→None
+
         df["__sales_val"] = df["変更(売上)"].apply(parse_sales_numeric)
         # 非数値は除外
         df = df[df["__sales_val"].notna()]
-        # 入力された閾値以下のみ表示
-        df = df[df["__sales_val"] <= sales_threshold]
+
+        # threshold > 0 ⇒ その値以上を表示
+        # threshold < 0 ⇒ その値以下を表示
+        if sales_threshold > 0:
+            df = df[df["__sales_val"] >= sales_threshold]
+        else:  # sales_threshold < 0
+            df = df[df["__sales_val"] <= sales_threshold]
+
         df.drop(columns=["__sales_val"], inplace=True)
 
-    # 順位減少閾値が0以外ならフィルタを適用
+    # 順位減少閾値が 0 以外ならフィルタを適用
     if "比較" in df.columns and rank_threshold != 0:
         def parse_rank_numeric(value):
             s_clean = re.sub(r"[^0-9.-]", "", str(value))
@@ -351,7 +360,7 @@ def show_sheet1():
         df["__rank_val"] = df["比較"].apply(parse_rank_numeric)
         # 非数値は除外
         df = df[df["__rank_val"].notna()]
-        # 入力された閾値以下のみ表示
+        # 入力された閾値以下のみ表示 (Rank は基本 “減少” に対する指標なので従来どおり <=)
         df = df[df["__rank_val"] <= rank_threshold]
         df.drop(columns=["__rank_val"], inplace=True)
 
