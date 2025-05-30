@@ -15,7 +15,7 @@ if "sales_sort_state" not in st.session_state:
 if "rank_sort_state" not in st.session_state:
     st.session_state["rank_sort_state"] = 0
 
-# ▼▼▼ 追加: フィルタ状態管理 ▼▼▼
+# ▼▼▼ 追加: フィルタ状態管理（旧コードのチェックボックス）▼▼▼
 if "sales_decrease_filter" not in st.session_state:
     st.session_state["sales_decrease_filter"] = False
 if "rank_decrease_filter" not in st.session_state:
@@ -40,7 +40,7 @@ def show_sheet1():
 
     st.subheader("上位ページ")
 
-    # ▼ 短めの説明 (メモ表示) ▼
+    # ▼ 短めの説明 (メモ表示) [旧コードのまま] ▼
     st.info("""
     **フィルタボタンの定義**  
     - **売上減少:** 変更(売上)が -20% 以下  
@@ -49,7 +49,7 @@ def show_sheet1():
     - **古い更新日:** 最終更新日が 6ヶ月以上前
     """)
 
-    # ▼▼▼ チェックボックスを配置してフィルタON/OFFを管理 ▼▼▼
+    # ▼▼▼ 旧コードのチェックボックス配置 ▼▼▼
     fc1, fc2, fc3, fc4 = st.columns(4)
 
     with fc1:
@@ -69,7 +69,33 @@ def show_sheet1():
             "古い更新日", value=st.session_state["old_update_filter"]
         )
 
-    # ---- ボタン(トラフィック/売上/順位) ----
+    # ▼▼▼ 新コード要素：閾値入力（自動フィルタ）▼▼▼
+    st.write("---")
+    st.info("""
+    **自動フィルタ(追加機能)**  
+    - **売上変化閾値(円)** を入力すると、列「変更(売上)」がその値以下のものを抽出  
+      (例:-20, -500, 0 等)  
+      非数値は除外されます。  
+    - **順位減少閾値** を入力すると、列「比較(順位)」がその値以下のものを抽出  
+      (例:-5, -10 等、マイナス値が大きいほど順位が下がったことを意味)  
+      非数値は除外されます。  
+    """)
+
+    sales_threshold = st.number_input(
+        "売上変化閾値(円) (追加機能)",
+        value=-20.0,
+        step=1000.0
+    )
+    rank_threshold = st.number_input(
+        "順位減少閾値 (追加機能)",
+        min_value=-100.0,
+        max_value=100.0,
+        value=-5.0,
+        step=1.0
+    )
+    st.write("---")
+
+    # ---- ボタン(トラフィック/売上/順位) [旧コードのまま] ----
     c1, c2, c3 = st.columns([1,1,1])
     with c1:
         traffic_btn = st.button("トラフィック")
@@ -84,7 +110,7 @@ def show_sheet1():
         st.warning("CSVが空、またはまだデータがありません。")
         return
 
-    # ▼▼▼ CSSを追加して、ヘッダを改行せずスクロールする ▼▼▼
+    # ▼▼▼ CSSを追加して、ヘッダを改行せずスクロールする [旧コードのまま] ▼▼▼
     st.markdown(
         """
         <!-- sorttable.js (クリックでソート) -->
@@ -148,7 +174,7 @@ def show_sheet1():
         unsafe_allow_html=True
     )
 
-    # リネームマップ
+    # ▼▼▼ カラムリネーム [旧コードのまま] ▼▼▼
     rename_map = {
         "SEO対策KW": "トップキーワード",
         "7日間平均順位": "順位",
@@ -167,7 +193,7 @@ def show_sheet1():
         if oldcol in df.columns:
             df.rename(columns={oldcol: newcol}, inplace=True)
 
-    # URL + seo_title を結合
+    # ▼▼▼ URL + seo_title を結合 [旧コードのまま] ▼▼▼
     if "URL" in df.columns and "seo_title" in df.columns:
         def combine_title_url(row):
             title_esc = html.escape(str(row["seo_title"]))
@@ -198,7 +224,7 @@ def show_sheet1():
     exist_cols = [c for c in final_cols if c in df.columns]
     df = df[exist_cols]
 
-    # ▼▼▼ 既存のソートボタン制御 ▼▼▼
+    # ▼▼▼ ソートボタン制御 [旧コードのまま] ▼▼▼
     if traffic_btn:
         st.session_state["traffic_sort_state"] = (st.session_state["traffic_sort_state"] + 1) % 3
         st.session_state["sales_sort_state"]   = 0
@@ -212,7 +238,6 @@ def show_sheet1():
         st.session_state["traffic_sort_state"] = 0
         st.session_state["sales_sort_state"]   = 0
 
-    # どれかに当てはまったらソート
     if st.session_state["traffic_sort_state"] == 1:
         if "トラフィック" in df.columns:
             df.sort_values(by="トラフィック", ascending=False, inplace=True)
@@ -232,9 +257,10 @@ def show_sheet1():
         if "順位" in df.columns:
             df.sort_values(by="順位", ascending=True, inplace=True)
 
-    # ▼▼▼ フィルタ適用ロジック ▼▼▼
+    # ▼▼▼ 以下、フィルタ適用ロジック ▼▼▼
+    # --- (A) 旧コードのチェックボックスロジック --- 
 
-    # 1. 売上減少
+    # 1. 売上減少 [旧コードのまま]
     if st.session_state["sales_decrease_filter"]:
         def parse_numeric(value):
             s_clean = re.sub(r"[¥,% ]", "", str(value))
@@ -249,7 +275,7 @@ def show_sheet1():
             df_filtered = df_filtered[df_filtered["val"] <= -20].sort_values("val", ascending=True)
             df = df_filtered.drop(columns=["val"])
 
-    # 2. 順位減少
+    # 2. 順位減少 [旧コードのまま]
     if st.session_state["rank_decrease_filter"]:
         def parse_numeric(value):
             s_clean = re.sub(r"[¥,% ]", "", str(value))
@@ -265,7 +291,7 @@ def show_sheet1():
             df_filtered = df_filtered[df_filtered["val"] <= -5].sort_values("val", ascending=True)
             df = df_filtered.drop(columns=["val"])
 
-    # 3. 順位10-30＋
+    # 3. 順位10-30＋ [旧コードのまま]
     if st.session_state["rank_10_30_filter"]:
         def parse_numeric(value):
             s_clean = re.sub(r"[^0-9.-]", "", str(value))
@@ -282,7 +308,7 @@ def show_sheet1():
             df_filtered = df_filtered.sort_values("val", ascending=True)
             df = df_filtered.drop(columns=["val"])
 
-    # 4. 古い更新日
+    # 4. 古い更新日 [旧コードのまま]
     if st.session_state["old_update_filter"]:
         if "最終更新日" in df.columns:
             df_filtered = df.copy()
@@ -298,7 +324,38 @@ def show_sheet1():
             df_filtered.sort_values("date_val", ascending=True, inplace=True)
             df = df_filtered.drop(columns=["date_val"])
 
-    # 色付け + HTML化 (既存処理そのまま)
+    # --- (B) 新コードの自動フィルタ追加 ---
+    #  (1) 売上変化閾値フィルタ (非数値除外)
+    if "変更(売上)" in df.columns:
+        def parse_sales_numeric(value):
+            s_clean = re.sub(r"[¥,%\s]", "", str(value))
+            try:
+                return float(s_clean)
+            except:
+                return None  # 非数値→None
+        df["__sales_val"] = df["変更(売上)"].apply(parse_sales_numeric)
+        # 非数値は除外
+        df = df[df["__sales_val"].notna()]
+        # 入力された閾値以下のみ表示
+        df = df[df["__sales_val"] <= sales_threshold]
+        df.drop(columns=["__sales_val"], inplace=True)
+
+    #  (2) 順位減少閾値フィルタ (非数値除外)
+    if "比較" in df.columns:
+        def parse_rank_numeric(value):
+            s_clean = re.sub(r"[^0-9.-]", "", str(value))
+            try:
+                return float(s_clean)
+            except:
+                return None
+        df["__rank_val"] = df["比較"].apply(parse_rank_numeric)
+        # 非数値は除外
+        df = df[df["__rank_val"].notna()]
+        # 入力された閾値以下のみ表示
+        df = df[df["__rank_val"] <= rank_threshold]
+        df.drop(columns=["__rank_val"], inplace=True)
+
+    # ▼▼▼ 色付け + HTML化 (旧コードそのまま) ▼▼▼
     def color_plusminus(val, with_yen=False):
         s = str(val).strip()
         s_clean = re.sub(r"[¥, ]", "", s)
@@ -353,8 +410,9 @@ def show_sheet1():
     html_table = df.to_html(index=False, escape=False, classes=["ahrefs-table","sortable"])
     st.write(html_table, unsafe_allow_html=True)
 
+
 ###################################
-# (Hidden) README doc
+# (Hidden) README doc (旧コードのまま)
 ###################################
 
 README_TEXT = """\
