@@ -45,6 +45,26 @@ def show_sheet1():
     - **古い更新日:** 最終更新日が 6ヶ月以上前
     """)
 
+    # ▼▼▼ チェックボックスを配置してフィルタON/OFFを管理 ▼▼▼Add commentMore actions
+    fc1, fc2, fc3, fc4 = st.columns(4)
+
+    with fc1:
+        st.session_state["sales_decrease_filter"] = st.checkbox(
+            "売上減少", value=st.session_state["sales_decrease_filter"]
+        )
+    with fc2:
+        st.session_state["rank_decrease_filter"] = st.checkbox(
+            "順位減少", value=st.session_state["rank_decrease_filter"]
+        )
+    with fc3:
+        st.session_state["rank_10_30_filter"] = st.checkbox(
+            "順位10-30＋", value=st.session_state["rank_10_30_filter"]
+        )
+    with fc4:
+        st.session_state["old_update_filter"] = st.checkbox(
+            "古い更新日", value=st.session_state["old_update_filter"]
+        )
+    
     # ▼▼▼ 閾値入力 (数値を入れるだけで自動的にフィルタ適用) ▼▼▼
     st.write("**自動フィルタ**")
     sales_threshold = st.number_input(
