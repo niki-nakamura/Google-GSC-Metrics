@@ -69,9 +69,9 @@ def show_sheet1():
             "古い更新日", value=st.session_state["old_update_filter"]
         )
 
-    # ▼▼▼ 追加機能: 自動フィルタ (初期値0) — ここを折りたたむ ▼▼▼
+    # ▼▼▼ 自動フィルタの説明文を折りたたみ (expander) ▼▼▼
     st.write("---")
-    with st.expander("自動フィルタ(追加機能)"):
+    with st.expander("自動フィルタ(追加機能)の説明を開く/閉じる"):
         st.info("""
         1. **売上変化閾値(円)**  
            - 閾値が **正** ⇒ その値「以上」の行を抽出  
@@ -87,18 +87,19 @@ def show_sheet1():
 
         ※ 初期値は 0 なので、未入力(=0) の場合はフィルタがかからず **すべて表示** されます。
         """)
-        sales_threshold = st.number_input(
-            "売上変化閾値(円) (追加機能)",
-            value=0.0,  # 初期値0
-            step=100.0
-        )
-        rank_threshold = st.number_input(
-            "順位減少閾値 (追加機能)",
-            min_value=-100.0,
-            max_value=100.0,
-            value=0.0,  # 初期値0
-            step=1.0
-        )
+    # ▼▼▼ 数値入力 (初期値0) ▼▼▼
+    sales_threshold = st.number_input(
+        "売上変化閾値(円) (追加機能)",
+        value=0.0,  # 初期値0
+        step=100.0
+    )
+    rank_threshold = st.number_input(
+        "順位減少閾値 (追加機能)",
+        min_value=-100.0,
+        max_value=100.0,
+        value=0.0,  # 初期値0
+        step=1.0
+    )
     st.write("---")
 
     # ---- ボタン(トラフィック/売上/順位) [旧コードのまま] ----
@@ -333,50 +334,47 @@ def show_sheet1():
     # ▼▼▼ (B) 新たに追加された自動フィルタ（売上変化閾値/順位減少閾値） ▼▼▼
 
     # 売上変化閾値が 0 以外ならフィルタを適用
-    # (注: sales_threshold は expander の中で定義しているのでスコープOK)
-    if "変更(売上)" in df.columns and 'sales_threshold' in locals():
-        if sales_threshold != 0:
-            def parse_sales_numeric(value):
-                s_clean = re.sub(r"[¥,%\s]", "", str(value))
-                try:
-                    return float(s_clean)
-                except:
-                    return None  # 非数値→None
+    if "変更(売上)" in df.columns and sales_threshold != 0:
+        def parse_sales_numeric(value):
+            s_clean = re.sub(r"[¥,%\s]", "", str(value))
+            try:
+                return float(s_clean)
+            except:
+                return None  # 非数値→None
 
-            df["__sales_val"] = df["変更(売上)"].apply(parse_sales_numeric)
-            # 非数値は除外
-            df = df[df["__sales_val"].notna()]
+        df["__sales_val"] = df["変更(売上)"].apply(parse_sales_numeric)
+        # 非数値は除外
+        df = df[df["__sales_val"].notna()]
 
-            # threshold > 0 ⇒ その値以上を表示
-            # threshold < 0 ⇒ その値以下を表示
-            if sales_threshold > 0:
-                df = df[df["__sales_val"] >= sales_threshold]
-            else:  # sales_threshold < 0
-                df = df[df["__sales_val"] <= sales_threshold]
+        # threshold > 0 ⇒ その値以上を表示
+        # threshold < 0 ⇒ その値以下を表示
+        if sales_threshold > 0:
+            df = df[df["__sales_val"] >= sales_threshold]
+        else:  # sales_threshold < 0
+            df = df[df["__sales_val"] <= sales_threshold]
 
-            df.drop(columns=["__sales_val"], inplace=True)
+        df.drop(columns=["__sales_val"], inplace=True)
 
     # 順位減少閾値が 0 以外ならフィルタを適用
-    if "比較" in df.columns and 'rank_threshold' in locals():
-        if rank_threshold != 0:
-            def parse_rank_numeric(value):
-                s_clean = re.sub(r"[^0-9.-]", "", str(value))
-                try:
-                    return float(s_clean)
-                except:
-                    return None
-            df["__rank_val"] = df["比較"].apply(parse_rank_numeric)
-            # 非数値は除外
-            df = df[df["__rank_val"].notna()]
+    if "比較" in df.columns and rank_threshold != 0:
+        def parse_rank_numeric(value):
+            s_clean = re.sub(r"[^0-9.-]", "", str(value))
+            try:
+                return float(s_clean)
+            except:
+                return None
+        df["__rank_val"] = df["比較"].apply(parse_rank_numeric)
+        # 非数値は除外
+        df = df[df["__rank_val"].notna()]
 
-            # threshold > 0 ⇒ その値「以上」を表示
-            # threshold < 0 ⇒ その値「以下」を表示
-            if rank_threshold > 0:
-                df = df[df["__rank_val"] >= rank_threshold]
-            else:  # rank_threshold < 0
-                df = df[df["__rank_val"] <= rank_threshold]
+        # threshold > 0 ⇒ その値「以上」を表示
+        # threshold < 0 ⇒ その値「以下」を表示
+        if rank_threshold > 0:
+            df = df[df["__rank_val"] >= rank_threshold]
+        else:  # rank_threshold < 0
+            df = df[df["__rank_val"] <= rank_threshold]
 
-            df.drop(columns=["__rank_val"], inplace=True)
+        df.drop(columns=["__rank_val"], inplace=True)
 
     # ▼▼▼ 色付け + HTML化 (旧コードそのまま) ▼▼▼
     def color_plusminus(val, with_yen=False):
